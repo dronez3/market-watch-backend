@@ -1,4 +1,7 @@
 import { withCORS, preflight } from "./_cors";
+import { rateGate } from "./_rate";
+import { vUUID, vIntInRange } from "./_validate";
+
 export const config = { runtime: "edge" };
 
 function csvEscape(v: any) { if (v == null) return ""; const s = String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
@@ -23,20 +26,31 @@ function toCSV(rows: any[]) {
 
 export default async function handler(req: Request) {
   const pf = preflight(req); if (pf) return pf;
+
+  // Rate limit: 12 downloads / 60s per IP
+  const limited = await rateGate(req, "csv_portfolio", 12, 60);
+  if (limited) return withCORS(limited, req);
+
   try {
     const url = new URL(req.url);
     const origin = `${url.protocol}//${url.host}`;
-    const user = (url.searchParams.get("user") || "").trim();
-    const hours = Number(url.searchParams.get("hours") || 72);
-    if (!user) {
-      return withCORS(new Response("error,missing user", { status: 400, headers: { "content-type": "text/plain" } }), req);
+
+    // Validate inputs
+    let user: string, hours: number;
+    try {
+      user = vUUID(url.searchParams.get("user") || "");
+      hours = vIntInRange(url.searchParams.get("hours"), 72, 6, 168);
+    } catch (e: any) {
+      return withCORS(new Response(`error,validation_failed,${String(e?.message || e)}`, { status: 400, headers: { "content-type": "text/plain" } }), req);
     }
+
     const insightsUrl = `${origin}/api/action_portfolio_insights?user=${encodeURIComponent(user)}&hours=${encodeURIComponent(String(hours))}`;
     const r = await fetch(insightsUrl, { cache: "no-store" });
     const data = await r.json().catch(() => null);
     if (!r.ok || !data || data.ok !== true) {
       return withCORS(new Response(`error,upstream failed,status=${r.status}`, { status: 502, headers: { "content-type": "text/plain" } }), req);
     }
+
     const rows = Array.isArray(data.results) ? data.results : [];
     const csv = toCSV(rows);
     return withCORS(new Response(csv, {
