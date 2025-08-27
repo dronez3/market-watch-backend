@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Market Watch — Portfolio</title>
+  <style>
+    :root { --bg:#0b1020; --card:#151b2e; --text:#e7ecf5; --muted:#9fb0d1; --accent:#5ee6a8; --warn:#ffc65c; --bad:#ff7a7a; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--text); }
+    header { padding:20px 16px; border-bottom:1px solid #20263f; background:#0e1430; position:sticky; top:0; z-index:10; }
+    h1 { margin:0; font-size:20px; letter-spacing:.3px; }
+    .wrap { max-width:1100px; margin:0 auto; padding:20px 16px; }
+    .card { background:var(--card); border:1px solid #232a44; border-radius:14px; padding:16px; box-shadow:0 6px 24px rgba(0,0,0,.25); }
+    label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
+    input, button { width:100%; padding:10px 12px; border-radius:10px; border:1px solid #2a3356; background:#0f1533; color:var(--text); }
+    button { cursor:pointer; border-color:#38406b; font-weight:600; }
+    button.primary { background:linear-gradient(180deg,#2cd4ff,#6cf3c5); color:#0a0f22; border:none; }
+    .row { display:grid; grid-template-columns: 1fr 160px 160px; gap:12px; }
+    .pill { display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid #2a3356; }
+    .pill.ok { background:rgba(94,230,168,.12); border-color:rgba(94,230,168,.4); color:var(--accent); }
+    .pill.warn { background:rgba(255,198,92,.12); border-color:rgba(255,198,92,.4); color:var(--warn); }
+    .pill.bad { background:rgba(255,122,122,.12); border-color:rgba(255,122,122,.4); color:var(--bad); }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:10px; border-bottom:1px solid #222a48; text-align:left; font-size:14px; }
+    th { color:var(--muted); user-select:none; cursor:pointer; }
+    .muted { color:var(--muted); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    .hr { height:1px; background:#222a48; margin:12px 0; }
+    .hidden { display:none; }
+    @media (max-width: 900px) { .row { grid-template-columns:1fr; } th:nth-child(7), td:nth-child(7) { display:none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+      <h1>📊 Market Watch — Portfolio</h1>
+      <div style="display:flex; gap:8px;">
+        <a class="pill muted" href="/scorecard.html" style="text-decoration:none;">Scorecard</a>
+        <a class="pill muted" href="/compare.html" style="text-decoration:none;">Compare</a>
+        <a class="pill muted" href="/api/ping" target="_blank" style="text-decoration:none;">API Ping</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>User ID (UUID)</label>
+          <input id="user" placeholder="e.g., 7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11" value="7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11"/>
+        </div>
+        <div>
+          <label>Sentiment Window (hours)</label>
+          <input id="hours" type="number" min="6" max="168" value="72"/>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="primary" id="run">Load Portfolio</button>
+          <button id="copy">Copy Insights API Link</button>
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div id="status" class="muted">Ready.</div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th data-key="symbol">Symbol</th>
+            <th data-key="probability_up">Prob ↑</th>
+            <th data-key="momentum_7bar_pct">7-bar Mom</th>
+            <th data-key="sentiment">Sentiment</th>
+            <th data-key="volatility">Vol</th>
+            <th data-key="action">Action</th>
+            <th data-key="liquidity_score">Liquidity</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="note" class="muted" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card hidden" id="risksBox" style="margin-top:16px;">
+      <div style="font-weight:700; margin-bottom:6px;">Flags & Risks</div>
+      <div id="risks" class="mono muted">—</div>
+    </div>
+
+    <div class="card hidden" id="debugBox" style="margin-top:16px;">
+      <div style="font-weight:700; margin-bottom:6px;">Debug</div>
+      <pre id="debug" class="mono muted" style="margin:0; white-space:pre-wrap; word-break:break-word;">—</pre>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fmtPct = (x) => (x == null || isNaN(x)) ? "—" : (Number(x) * 100).toFixed(0) + "%";
+    const fmtPct2 = (x) => (x == null || isNaN(x)) ? "—" : Number(x).toFixed(2) + "%";
+
+    function rowHTML(r) {
+      const action = r.action || (r.probability_up >= 0.60 ? "consider_accumulating" : r.probability_up <= 0.45 ? "watchlist_caution" : "hold");
+      const link = `/scorecard.html?symbol=${encodeURIComponent(r.symbol)}`;
+      return `
+        <td><a href="${link}" style="color:#e7ecf5; text-decoration:none;">${r.symbol}</a></td>
+        <td>${fmtPct(r.probability_up)}</td>
+        <td>${fmtPct2(r.momentum_7bar_pct)}</td>
+        <td>${r.sentiment == null ? "—" : Number(r.sentiment).toFixed(3)}</td>
+        <td>${r.volatility ?? "—"}</td>
+        <td>${action.replace("_"," ")}</td>
+        <td>${r.liquidity_score != null ? Number(r.liquidity_score).toFixed(2) : "—"}</td>
+      `;
+    }
+
+    function sortRows(tbody, key, dir= -1) {
+      const rows = Array.from(tbody.querySelectorAll("tr"));
+      rows.sort((a,b) => {
+        const get = (tr) => {
+          const c = tr.children;
+          switch (key) {
+            case "symbol": return c[0].textContent.trim();
+            case "probability_up": return parseFloat(c[1].textContent) || -1e9;
+            case "momentum_7bar_pct": return parseFloat(c[2].textContent) || -1e9;
+            case "sentiment": return parseFloat(c[3].textContent) || -1e9;
+            case "volatility": return {high:2,normal:1,low:0}[c[4].textContent] ?? 3;
+            case "action": return c[5].textContent;
+            case "liquidity_score": return parseFloat(c[6].textContent) || -1e9;
+            default: return 0;
+          }
+        };
+        const va = get(a), vb = get(b);
+        if (typeof va === "string" && typeof vb === "string") return dir * va.localeCompare(vb);
+        return dir * ((va > vb) - (va < vb));
+      });
+      rows.forEach(r => tbody.appendChild(r));
+    }
+
+    async function run() {
+      const user = $("user").value.trim();
+      const hours = Number($("hours").value || 72);
+      if (!user) { alert("Enter user UUID"); return; }
+      $("status").textContent = "Loading portfolio…";
+
+      const base = location.origin;
+      const listUrl = `${base}/api/action_portfolio_list?user=${encodeURIComponent(user)}`;
+      const insUrl  = `${base}/api/action_portfolio_insights?user=${encodeURIComponent(user)}&hours=${encodeURIComponent(String(hours))}`;
+
+      try {
+        const [listR, insR] = await Promise.all([fetch(listUrl, {cache:"no-store"}), fetch(insUrl, {cache:"no-store"})]);
+        const list = await listR.json().catch(()=>null);
+        const ins = await insR.json().catch(()=>null);
+
+        $("debug").textContent = JSON.stringify({ list, insights: ins }, null, 2);
+        $("debugBox").classList.remove("hidden");
+
+        const tbody = $("tbl").querySelector("tbody");
+        tbody.innerHTML = "";
+
+        if (!insR.ok || !ins || ins.ok !== true) {
+          $("status").textContent = `Error: insights ${insR.status}`;
+          return;
+        }
+
+        const rows = (ins.results || []);
+        rows.forEach(r => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = rowHTML(r);
+          tbody.appendChild(tr);
+        });
+        sortRows(tbody, "probability_up", -1);
+
+        const tickers = (list && list.ok && Array.isArray(list.symbols)) ? list.symbols.join(", ") : rows.map(r=>r.symbol).join(", ");
+        $("note").textContent = `Holdings: ${tickers} • Ranked by short-term upside probability • Window ${hours}h`;
+
+        // Aggregate risks
+        const flags = rows.flatMap(r => Array.isArray(r.risk_flags) ? r.risk_flags.map(x => `${r.symbol}: ${x}`) : []);
+        if (flags.length) {
+          $("risks").textContent = flags.join("\n");
+          $("risksBox").classList.remove("hidden");
+        } else {
+          $("risksBox").classList.add("hidden");
+        }
+
+        $("status").textContent = "Done.";
+      } catch (e) {
+        $("status").textContent = "Failed.";
+        $("debug").textContent = String(e);
+        $("debugBox").classList.remove("hidden");
+      }
+    }
+
+    // Sort handlers
+    (function initSort(){
+      const thead = $("tbl").querySelector("thead");
+      let lastKey = "probability_up", dir = -1;
+      thead.addEventListener("click", (e) => {
+        const th = e.target.closest("th");
+        if (!th) return;
+        const key = th.dataset.key;
+        if (!key) return;
+        const tbody = $("tbl").querySelector("tbody");
+        dir = (key === lastKey) ? -dir : -1;
+        lastKey = key;
+        sortRows(tbody, key, dir);
+      });
+    })();
+
+    $("run").addEventListener("click", run);
+    $("copy").addEventListener("click", () => {
+      const user = $("user").value.trim();
+      const hours = Number($("hours").value || 72);
+      const link = `${location.origin}/api/action_portfolio_insights?user=${encodeURIComponent(user)}&hours=${encodeURIComponent(String(hours))}`;
+      navigator.clipboard.writeText(link).then(()=> $("status").textContent = "Copied insights API link."));
+    });
+
+    // Auto-run via query
+    (function initFromQuery(){
+      const q = new URLSearchParams(location.search);
+      if (q.get("user")) $("user").value = q.get("user");
+      if (q.get("hours")) $("hours").value = q.get("hours");
+      if (q.get("user")) run();
+    })();
+  </script>
+</body>
+</html>
