@@ -4,6 +4,7 @@ import { withCORS, preflight } from "./_cors";
 import { rateGate } from "./_rate";
 import { vSymbol } from "./_validate";
 import { getServiceClient } from "./_supabase";
+import { cacheGet, cachePut } from "./_cache";
 
 function json(data: any, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -72,8 +73,6 @@ async function yahooHistory(symbol: string, range: Range, interval: Interval) {
   return { ok:false, stage:"yahooHistory", status:lastStatus, error:lastText || "no result" };
 }
 
-// Fallback: Stooq full daily CSV, we filter to requested range
-// https://stooq.com/q/d/l/?s=aapl&i=d
 async function stooqHistory(symbol: string, range: Range) {
   const u = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&i=d`;
   const r = await fetch(u, { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0 (compatible; MarketWatchBot/1.0)" } });
@@ -104,7 +103,6 @@ async function stooqHistory(symbol: string, range: Range) {
 
 export default async function handler(req: Request) {
   const pf = preflight(req); if (pf) return pf;
-
   const limited = await rateGate(req, "history_proxy", 60, 60);
   if (limited) return withCORS(limited, req);
 
@@ -123,10 +121,21 @@ export default async function handler(req: Request) {
       return withCORS(json({ ok:false, stage:"validate", error:String(e?.message || e) }, 400), req);
     }
 
-    // Try Yahoo first
+    // TTL controls
+    const force = url.searchParams.get("force") === "true"; // bypass cache
+    const ttl   = Math.max(60, Math.min(Number(url.searchParams.get("ttl") || (interval === "1wk" ? 3600 : 6 * 3600)), 7 * 24 * 3600)); // default 6h (1wk→1h)
+
+    const key = `hist:${symbol}:r=${range}:i=${interval}`;
+    if (!force) {
+      const hit = await cacheGet<any>(key);
+      if (hit.hit) {
+        return withCORS(json({ ok:true, cached:true, symbol, provider: hit.value.provider, count: hit.value.rows.length, rows: hit.value.rows }), req);
+      }
+    }
+
+    // Fetch fresh
     let result = await yahooHistory(symbol, range, interval);
     if (!result.ok) {
-      // Fall back to Stooq (only daily)
       if (interval !== "1d") {
         return withCORS(json({ ok:false, stage:"both_failed", yahoo:result, error:"fallback requires interval=1d" }, 502), req);
       }
@@ -144,6 +153,7 @@ export default async function handler(req: Request) {
       if (!expected) return withCORS(json({ ok:false, stage:"auth", error:"Server missing WRITER_BEARER_TOKEN" }, 500), req);
       if (token !== expected) return withCORS(json({ ok:false, stage:"auth", error:"Unauthorized" }, 401), req);
 
+      const supabase = getServiceClient();
       const dailyRows = (result as any).rows.map((r: any) => ({
         symbol,
         date: r.t.slice(0,10),
@@ -153,21 +163,14 @@ export default async function handler(req: Request) {
         close: r.close,
         volume: r.volume ?? null
       }));
-
-      const supabase = getServiceClient();
       const { error } = await supabase.from("daily_agg").upsert(dailyRows, { onConflict: "symbol,date" });
       if (error) return withCORS(json({ ok:false, stage:"upsert", error:error.message }, 500), req);
       upserted = dailyRows.length;
     }
 
-    return withCORS(json({
-      ok: true,
-      symbol,
-      provider: (result as any).provider,
-      count: (result as any).rows.length,
-      upserted,
-      rows: (result as any).rows
-    }), req);
+    // Cache & return
+    await cachePut(key, result, ttl);
+    return withCORS(json({ ok:true, symbol, provider: (result as any).provider, count: (result as any).rows.length, upserted, rows: (result as any).rows }), req);
   } catch (e: any) {
     return withCORS(json({ ok:false, stage:"top", error:String(e?.message || e) }, 502), req);
   }
