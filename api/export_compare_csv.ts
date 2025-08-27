@@ -1,8 +1,43 @@
 import { withCORS, preflight } from "./_cors";
 import { rateGate } from "./_rate";
-import { vSymbolsList, vIntInRange } from "./_validate";
 
 export const config = { runtime: "edge" };
+
+// --- Local normalizer (accepts ^GSPC, .INX, BRK-B, etc.) --------------------
+function stripWeirdWhitespace(s: string) {
+  return s.replace(/[\u00A0\u200B-\u200D\uFEFF]/g, " ").trim();
+}
+function normalizeSymbol(raw: string): string {
+  let s = stripWeirdWhitespace((raw || "").toUpperCase());
+  if (!s) throw new Error(`Bad symbol: ${raw}`);
+
+  // Strip Yahoo/Google index prefixes
+  if (s.startsWith("^") || s.startsWith(".")) s = s.slice(1);
+
+  // Normalize hyphen to dot (e.g., BRK-B -> BRK.B)
+  s = s.replace(/-/g, ".");
+
+  // Common index aliases -> ETF proxies (keeps downstream happy)
+  const indexMap: Record<string, string> = {
+    // S&P 500
+    GSPC: "SPY", INX: "SPY", SPX: "SPY", US500: "SPY",
+    // Nasdaq 100
+    NDX: "QQQ", IXNDX: "QQQ", NAS100: "QQQ", US100: "QQQ",
+    // Dow Jones
+    DJI: "DIA", DJIA: "DIA",
+    // Russell 2000
+    RUT: "IWM", RTY: "IWM",
+    // Nasdaq Composite (approx)
+    IXIC: "QQQ"
+  };
+  if (s in indexMap) s = indexMap[s];
+
+  // Final sanity: conservative charset/length
+  if (!/^[A-Z][A-Z0-9.]{0,15}$/.test(s)) {
+    throw new Error(`Bad symbol: ${raw}`);
+  }
+  return s;
+}
 
 function csvEscape(v: any) { if (v == null) return ""; const s = String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
 function toCSV(rows: any[]) {
@@ -33,16 +68,29 @@ export default async function handler(req: Request) {
     const url = new URL(req.url);
     const origin = `${url.protocol}//${url.host}`;
 
-    // Validate inputs
-    let symbols: string[], horizon: number;
-    try {
-      symbols = vSymbolsList(url.searchParams.get("symbols") || "", 25);
-      horizon = vIntInRange(url.searchParams.get("horizon_days"), 5, 1, 14);
-    } catch (e: any) {
-      return withCORS(new Response(`error,validation_failed,${String(e?.message || e)}`, { status: 400, headers: { "content-type": "text/plain" } }), req);
+    // Normalize & validate symbols here to avoid any cached-module issues
+    const raw = url.searchParams.get("symbols") || "";
+    const list = raw.split(",").map(s => s.trim()).filter(Boolean);
+    if (!list.length) {
+      return withCORS(new Response("error,validation_failed,Missing symbols", { status: 400, headers: { "content-type": "text/plain" } }), req);
+    }
+    const normalized: string[] = [];
+    for (const item of list) {
+      try {
+        normalized.push(normalizeSymbol(item));
+      } catch (e: any) {
+        return withCORS(new Response(`error,validation_failed,${String(e?.message || e)}`, { status: 400, headers: { "content-type": "text/plain" } }), req);
+      }
     }
 
-    const compareUrl = `${origin}/api/compare_proxy?symbols=${encodeURIComponent(symbols.join(","))}&horizon_days=${encodeURIComponent(String(horizon))}`;
+    // horizon_days range check
+    const hRaw = url.searchParams.get("horizon_days");
+    const horizon = hRaw == null ? 5 : Math.trunc(Number(hRaw));
+    if (!Number.isFinite(horizon) || horizon < 1 || horizon > 14) {
+      return withCORS(new Response("error,validation_failed,Bad horizon_days", { status: 400, headers: { "content-type": "text/plain" } }), req);
+    }
+
+    const compareUrl = `${origin}/api/compare_proxy?symbols=${encodeURIComponent(normalized.join(","))}&horizon_days=${encodeURIComponent(String(horizon))}`;
     const r = await fetch(compareUrl, { cache: "no-store" });
     const data = await r.json().catch(() => null);
     if (!r.ok || !data || data.ok !== true) {
