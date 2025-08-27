@@ -1,4 +1,7 @@
 import { withCORS, preflight } from "./_cors";
+import { rateGate } from "./_rate";
+import { vSymbolsList, vIntInRange } from "./_validate";
+
 export const config = { runtime: "edge" };
 
 function csvEscape(v: any) { if (v == null) return ""; const s = String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
@@ -21,20 +24,31 @@ function toCSV(rows: any[]) {
 
 export default async function handler(req: Request) {
   const pf = preflight(req); if (pf) return pf;
+
+  // Rate limit: 12 downloads / 60s per IP
+  const limited = await rateGate(req, "csv_compare", 12, 60);
+  if (limited) return withCORS(limited, req);
+
   try {
     const url = new URL(req.url);
     const origin = `${url.protocol}//${url.host}`;
-    const symbols = (url.searchParams.get("symbols") || "").trim();
-    const horizon = Number(url.searchParams.get("horizon_days") || 5);
-    if (!symbols) {
-      return withCORS(new Response("error,missing symbols", { status: 400, headers: { "content-type": "text/plain" } }), req);
+
+    // Validate inputs
+    let symbols: string[], horizon: number;
+    try {
+      symbols = vSymbolsList(url.searchParams.get("symbols") || "", 25);
+      horizon = vIntInRange(url.searchParams.get("horizon_days"), 5, 1, 14);
+    } catch (e: any) {
+      return withCORS(new Response(`error,validation_failed,${String(e?.message || e)}`, { status: 400, headers: { "content-type": "text/plain" } }), req);
     }
-    const compareUrl = `${origin}/api/compare_proxy?symbols=${encodeURIComponent(symbols)}&horizon_days=${encodeURIComponent(String(horizon))}`;
+
+    const compareUrl = `${origin}/api/compare_proxy?symbols=${encodeURIComponent(symbols.join(","))}&horizon_days=${encodeURIComponent(String(horizon))}`;
     const r = await fetch(compareUrl, { cache: "no-store" });
     const data = await r.json().catch(() => null);
     if (!r.ok || !data || data.ok !== true) {
       return withCORS(new Response(`error,upstream failed,status=${r.status}`, { status: 502, headers: { "content-type": "text/plain" } }), req);
     }
+
     const rows = Array.isArray(data.results) ? data.results : [];
     const csv = toCSV(rows);
     return withCORS(new Response(csv, {
