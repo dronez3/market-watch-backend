@@ -9,7 +9,9 @@
     "start": "vercel dev",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4"
+  },
   "devDependencies": {
     "typescript": "^5.4.0"
   }
