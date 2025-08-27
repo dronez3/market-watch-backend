@@ -1,0 +1,26 @@
+{
+  "info": {
+    "name": "Market Watch Backend",
+    "_postman_id": "f1c7a2b2-2d3e-4f9a-9c2b-0d1f2e3c4b5a",
+    "description": "Public read API + live proxies + health",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    { "name": "Probability", "request": { "method": "GET", "url": "{{baseUrl}}/api/prob?symbol=AAPL&horizon_days=5" } },
+    { "name": "Technicals", "request": { "method": "GET", "url": "{{baseUrl}}/api/tech?symbol=AAPL" } },
+    { "name": "Scorecard+", "request": { "method": "GET", "url": "{{baseUrl}}/api/scorecard_plus_proxy?symbol=AAPL&horizon_days=5&hours=72&lookback_days=90" } },
+    { "name": "Compare CSV", "request": { "method": "GET", "url": "{{baseUrl}}/api/export_compare_csv?symbols=SPY,QQQ,AAPL,MSFT&horizon_days=5" } },
+    { "name": "Portfolio Insights", "request": { "method": "GET", "url": "{{baseUrl}}/api/action_portfolio_insights?user={{userUuid}}&hours=72" } },
+    { "name": "Live Quote (force)", "request": { "method": "GET", "url": "{{baseUrl}}/api/quote_proxy?symbol=AAPL&force=true" } },
+    { "name": "History (daily, cached)", "request": { "method": "GET", "url": "{{baseUrl}}/api/history_proxy?symbol=AAPL&range=6mo&interval=1d" } },
+    { "name": "History + Upsert", "request": { "method": "GET", "url": "{{baseUrl}}/api/history_proxy?symbol=AAPL&range=1y&interval=1d&upsert=true&token={{writerToken}}" } },
+    { "name": "Health (shallow)", "request": { "method": "GET", "url": "{{baseUrl}}/api/health" } },
+    { "name": "Health (deep)", "request": { "method": "GET", "url": "{{baseUrl}}/api/health?deep=true&secret={{healthSecret}}" } }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "https://market-watch-backend.vercel.app" },
+    { "key": "userUuid", "value": "REPLACE-WITH-UUID" },
+    { "key": "writerToken", "value": "REPLACE-WITH-WRITER-BEARER-TOKEN" },
+    { "key": "healthSecret", "value": "REPLACE-WITH-HEALTH-SECRET" }
+  ]
+}
