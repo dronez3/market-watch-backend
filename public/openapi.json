@@ -2,84 +2,239 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Market Watch Backend (Public Read API)",
-    "version": "1.4.0",
-    "description": "Read-only endpoints for probability, technicals, portfolio insights, expected return, CSV exports, and live data proxies."
+    "version": "1.5.0",
+    "description": "Read-only endpoints for probability, technicals, scorecards, portfolio insights, expected return, CSV exports, live data proxies, and health checks."
   },
-  "servers": [{ "url": "https://market-watch-backend.vercel.app" }],
+  "servers": [
+    { "url": "https://market-watch-backend.vercel.app" }
+  ],
   "paths": {
-    "/api/prob": { "get": { "operationId": "getProbability", "summary": "Short-term upside probability for a symbol", "parameters": [
-      { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
-      { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } } },
-    "/api/tech": { "get": { "operationId": "getTechnicals", "summary": "Latest technicals snapshot for a symbol", "parameters": [
-      { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } } },
-    "/api/scorecard_proxy": { "get": { "operationId": "getScorecard", "summary": "Aggregate signals for one symbol (probability, technicals, options, institutional)", "parameters": [
-      { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
-      { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
-      { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } } },
-    "/api/scorecard_plus_proxy": { "get": { "operationId": "getScorecardPlus", "summary": "Scorecard + Expected Return (adds drift/vol interval)", "parameters": [
-      { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
-      { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
-      { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } },
-      { "name": "lookback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 90 } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } } },
-    "/api/compare_proxy": { "get": { "operationId": "compareSymbols", "summary": "Compare two or more tickers by probability, momentum, sentiment, volatility", "parameters": [
-      { "name": "symbols", "in": "query", "required": true, "schema": { "type": "string", "example": "SPY,QQQ,AAPL" } },
-      { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } } },
-    "/api/options_signal_link": { "get": { "operationId": "getOptionsTilt", "summary": "Options activity tilt for a symbol (bullish/neutral/bearish)", "parameters": [
-      { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
-      { "name": "fallback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 7 } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } } },
-    "/api/institutional_signal_link": { "get": { "operationId": "getInstitutionalTilt", "summary": "Institutional flow tilt for a symbol (bullish/neutral/bearish)", "parameters": [
-      { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
-      { "name": "fallback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 10 } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } },
-    "/api/expected_return": { "get": { "operationId": "getExpectedReturn", "summary": "Expected return estimate with 68% interval (log-return drift/vol)", "parameters": [
-      { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
-      { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 7 } },
-      { "name": "lookback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 90 } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } } },
-    "/api/prompt_template": { "get": { "operationId": "getPromptTemplate", "summary": "Build a GPT-ready single-ticker prompt", "parameters": [
-      { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
-      { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
-      { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } } },
-    "/api/action_portfolio_list": { "get": { "operationId": "actionPortfolioList", "summary": "List portfolio holdings (server-injected token)", "parameters": [
-      { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11" } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } } },
-    "/api/action_portfolio_insights": { "get": { "operationId": "actionPortfolioInsights", "summary": "Portfolio insights (server-injected token)", "parameters": [
-      { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11" } },
-      { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } } },
-
-    "/api/export_compare_csv": { "get": { "operationId": "exportCompareCsv", "summary": "Export compare results to CSV",
-      "parameters": [
-        { "name": "symbols", "in": "query", "required": true, "schema": { "type": "string", "example": "SPY,QQQ,AAPL,MSFT" } },
-        { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
-      ],
-      "responses": { "200": { "description": "OK (CSV)", "content": { "text/csv": { "schema": { "type": "string" } } } } }
-    } },
-
-    "/api/export_portfolio_csv": { "get": { "operationId": "exportPortfolioCsv", "summary": "Export portfolio insights to CSV (server-injected token)",
-      "parameters": [
-        { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11" } },
-        { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } }
-      ],
-      "responses": { "200": { "description": "OK (CSV)", "content": { "text/csv": { "schema": { "type": "string" } } } } }
-    } },
-
-    "/api/quote_proxy": { "get": { "operationId": "getLiveQuote", "summary": "Live quote via server-side provider (Yahoo)", "parameters": [
-      { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } } },
-
-    "/api/history_proxy": { "get": { "operationId": "getHistory", "summary": "Recent OHLCV via server-side provider (Yahoo) with optional upsert into daily_agg", "parameters": [
-      { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
-      { "name": "range", "in": "query", "required": false, "schema": { "type": "string", "enum": ["5d","1mo","3mo","6mo","1y","2y"], "default": "6mo" } },
-      { "name": "interval", "in": "query", "required": false, "schema": { "type": "string", "enum": ["1d","1wk"], "default": "1d" } },
-      { "name": "upsert", "in": "query", "required": false, "schema": { "type": "boolean", "default": false } }
-    ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } } }
+    "/api/prob": {
+      "get": {
+        "operationId": "getProbability",
+        "summary": "Short-term upside probability for a symbol",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5, "minimum": 1, "maximum": 14 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/tech": {
+      "get": {
+        "operationId": "getTechnicals",
+        "summary": "Latest technicals snapshot for a symbol",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/scorecard_proxy": {
+      "get": {
+        "operationId": "getScorecard",
+        "summary": "Aggregate signals (probability, technicals, options, institutional)",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/scorecard_plus_proxy": {
+      "get": {
+        "operationId": "getScorecardPlus",
+        "summary": "Scorecard + Expected Return (adds drift/vol interval)",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } },
+          { "name": "lookback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 90 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/compare_proxy": {
+      "get": {
+        "operationId": "compareSymbols",
+        "summary": "Compare tickers by probability, momentum, sentiment, volatility",
+        "parameters": [
+          { "name": "symbols", "in": "query", "required": true, "schema": { "type": "string", "example": "SPY,QQQ,AAPL,MSFT" } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/options_signal_link": {
+      "get": {
+        "operationId": "getOptionsTilt",
+        "summary": "Options activity tilt (bullish/neutral/bearish)",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "fallback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 7 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/institutional_signal_link": {
+      "get": {
+        "operationId": "getInstitutionalTilt",
+        "summary": "Institutional flow tilt (bullish/neutral/bearish)",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "fallback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/expected_return": {
+      "get": {
+        "operationId": "getExpectedReturn",
+        "summary": "Expected return estimate with 68% interval (log-return drift/vol)",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 7 } },
+          { "name": "lookback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 90 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/prompt_template": {
+      "get": {
+        "operationId": "getPromptTemplate",
+        "summary": "Build a GPT-ready single-ticker prompt",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/action_portfolio_list": {
+      "get": {
+        "operationId": "actionPortfolioList",
+        "summary": "List portfolio holdings (server-injected token)",
+        "parameters": [
+          { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/action_portfolio_insights": {
+      "get": {
+        "operationId": "actionPortfolioInsights",
+        "summary": "Portfolio insights (server-injected token)",
+        "parameters": [
+          { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11" } },
+          { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/export_compare_csv": {
+      "get": {
+        "operationId": "exportCompareCsv",
+        "summary": "Export compare results to CSV",
+        "parameters": [
+          { "name": "symbols", "in": "query", "required": true, "schema": { "type": "string", "example": "SPY,QQQ,AAPL,MSFT" }, "description": "Comma-separated tickers. Accepts index aliases (e.g., ^GSPC → SPY) and normalizes BRK-B → BRK.B." },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5, "minimum": 1, "maximum": 14 } }
+        ],
+        "responses": {
+          "200": { "description": "OK (CSV)", "content": { "text/csv": { "schema": { "type": "string" } } } }
+        }
+      }
+    },
+    "/api/export_portfolio_csv": {
+      "get": {
+        "operationId": "exportPortfolioCsv",
+        "summary": "Export portfolio insights to CSV (server-injected token)",
+        "parameters": [
+          { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11", "format": "uuid" } },
+          { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72, "minimum": 6, "maximum": 168 } }
+        ],
+        "responses": {
+          "200": { "description": "OK (CSV)", "content": { "text/csv": { "schema": { "type": "string" } } } }
+        }
+      }
+    },
+    "/api/quote_proxy": {
+      "get": {
+        "operationId": "getLiveQuote",
+        "summary": "Live quote via server-side provider (Yahoo with Stooq fallback + TTL cache)",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "force", "in": "query", "required": false, "schema": { "type": "boolean", "default": false }, "description": "Bypass cache if true." },
+          { "name": "ttl", "in": "query", "required": false, "schema": { "type": "integer", "default": 15, "minimum": 1, "maximum": 300 }, "description": "Cache TTL seconds." }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/history_proxy": {
+      "get": {
+        "operationId": "getHistory",
+        "summary": "Recent OHLCV via server-side provider (Yahoo → Stooq fallback) with optional upsert to daily_agg and TTL cache",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "range", "in": "query", "required": false, "schema": { "type": "string", "enum": ["5d","1mo","3mo","6mo","1y","2y"], "default": "6mo" } },
+          { "name": "interval", "in": "query", "required": false, "schema": { "type": "string", "enum": ["1d","1wk"], "default": "1d" } },
+          { "name": "upsert", "in": "query", "required": false, "schema": { "type": "boolean", "default": false }, "description": "If true (and interval=1d), writes rows into daily_agg (requires token)." },
+          { "name": "token", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Required when upsert=true. Use WRITER_BEARER_TOKEN." },
+          { "name": "force", "in": "query", "required": false, "schema": { "type": "boolean", "default": false }, "description": "Bypass cache if true." },
+          { "name": "ttl", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 60, "maximum": 604800, "default": 21600 }, "description": "Cache TTL seconds (default 6h; 1wk interval defaults to 1h)." }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Service health (shallow + deep checks)",
+        "parameters": [
+          { "name": "deep", "in": "query", "required": false, "schema": { "type": "boolean", "default": false }, "description": "If true, calls internal quote/history endpoints." },
+          { "name": "secret", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Required when deep=true (HEALTH_SECRET)." }
+        ],
+        "responses": {
+          "200": { "description": "OK / Healthy", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "503": { "description": "Unhealthy", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/healthz": {
+      "get": {
+        "operationId": "getUptime",
+        "summary": "Cheap uptime probe (‘ok’ text)",
+        "responses": {
+          "200": { "description": "OK (text)", "content": { "text/plain": { "schema": { "type": "string" } } } }
+        }
+      }
+    }
   }
 }
