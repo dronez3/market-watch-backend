@@ -1,0 +1,199 @@
+<!doctype html>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Market Watch — App</title>
+<style>
+  :root{--bg:#0b0d11;--card:#12151c;--text:#e6e9ef;--muted:#9aa3af;--ok:#20c997;--warn:#f59f00;--bad:#ef4444}
+  body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
+  header{padding:20px 24px;border-bottom:1px solid #1d2230}
+  header h1{margin:0;font-size:20px}
+  main{padding:20px 24px;max-width:1100px;margin:auto}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  .card{background:var(--card);border:1px solid #1d2230;border-radius:14px;padding:16px;flex:1 1 320px;box-shadow:0 4px 20px rgba(0,0,0,.25)}
+  label{font-size:12px;color:var(--muted)}
+  input,select,button{background:#0f1320;color:var(--text);border:1px solid #232a3a;border-radius:10px;padding:10px 12px}
+  button{cursor:pointer}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+  .title{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  h3{margin:0 0 8px 0;font-size:16px}
+  .kpi{font-weight:600}
+  .kpi .pos{color:var(--ok)} .kpi .neg{color:var(--bad)}
+  .muted{color:var(--muted)} .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .list{display:grid;gap:8px} .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
+  .pill.pos{background:rgba(32,201,151,.15);color:var(--ok);border:1px solid rgba(32,201,151,.4)}
+  .pill.neg{background:rgba(239,68,68,.15);color:var(--bad);border:1px solid rgba(239,68,68,.4)}
+  .pill.neu{background:rgba(148,163,184,.15);color:#cbd5e1;border:1px solid rgba(148,163,184,.4)}
+  pre{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#0f1320;border:1px solid #232a3a;border-radius:10px;padding:10px;margin:0}
+  a{color:#8ab4ff;text-decoration:none} a:hover{text-decoration:underline}
+  .table{width:100%;border-collapse:collapse} .table th,.table td{border-bottom:1px solid #1d2230;padding:8px;text-align:left;font-size:13px}
+</style>
+<header>
+  <h1>Market Watch</h1>
+</header>
+<main>
+  <section class="card">
+    <div class="title"><h3>Why is it moving?</h3><span class="muted"><a href="/api-docs.html">API docs</a></span></div>
+    <div class="controls">
+      <div>
+        <label>Symbol</label><br/>
+        <input id="sym" value="AAPL" size="8"/>
+      </div>
+      <div>
+        <label>Hours (news window)</label><br/>
+        <select id="hours">
+          <option>24</option><option>48</option><option selected>72</option><option>120</option>
+        </select>
+      </div>
+      <div>
+        <label>Horizon (days)</label><br/>
+        <select id="horizon"><option>3</option><option selected>5</option><option>7</option><option>10</option></select>
+      </div>
+      <div>
+        <button id="go">Analyze</button>
+      </div>
+      <div>
+        <label>Auto-refresh</label><br/>
+        <input type="checkbox" id="auto" checked/> <span class="muted">every 30s</span>
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <div class="card" style="flex:1 1 260px">
+        <h3>Now</h3>
+        <div id="now" class="kpi muted">—</div>
+        <div id="nowMeta" class="muted" style="margin-top:6px"></div>
+      </div>
+      <div class="card" style="flex:1 1 260px">
+        <h3>Signals</h3>
+        <div id="signals" class="list muted">—</div>
+      </div>
+      <div class="card" style="flex:1 1 320px">
+        <h3>News</h3>
+        <div id="news" class="list muted">—</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <div class="title"><h3>Quick compare</h3></div>
+    <div class="controls">
+      <div style="flex:1 1 300px">
+        <label>Symbols (comma-separated)</label><br/>
+        <input id="lst" value="SPY,QQQ,AAPL,MSFT" style="width:100%"/>
+      </div>
+      <div>
+        <label>Horizon (days)</label><br/>
+        <select id="ch">
+          <option>3</option><option selected>5</option><option>7</option><option>10</option>
+        </select>
+      </div>
+      <div><button id="cmp">Compare</button></div>
+      <div><a id="csv" class="muted" href="#" target="_blank">Export CSV</a></div>
+    </div>
+    <div style="margin-top:10px;overflow:auto">
+      <table class="table" id="cmpTable"><thead>
+        <tr><th>Symbol</th><th>Upside prob</th><th>Momentum 7-bar %</th><th>RSI</th></tr>
+      </thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <div class="title"><h3>Raw response (debug)</h3></div>
+    <pre id="raw">—</pre>
+  </section>
+</main>
+
+<script>
+const $ = (id)=>document.getElementById(id);
+const fmt = (n, d=2)=> (n===null||n===undefined||Number.isNaN(n)) ? "—" : Number(n).toFixed(d);
+const pct = (n)=> (n===null||n===undefined||Number.isNaN(n)) ? "—" : (Number(n)*100).toFixed(1)+"%";
+const sign = (n)=> n>0? "pos" : n<0? "neg" : "neu";
+
+async function getJSON(url){
+  const r = await fetch(url, {cache:"no-store"});
+  try { return await r.json(); } catch { return {ok:false, error:"invalid_json"} }
+}
+
+async function runWhy(){
+  const s = $("sym").value.trim() || "AAPL";
+  const hours = Number($("hours").value)||72;
+  const horizon = Number($("horizon").value)||5;
+  const base = location.origin;
+
+  const data = await getJSON(`${base}/api/why_proxy?symbol=${encodeURIComponent(s)}&hours=${hours}&horizon_days=${horizon}`);
+  $("raw").textContent = JSON.stringify(data, null, 2);
+
+  if(!data.ok){
+    $("now").innerHTML = `<span class="neg">Error</span>`;
+    $("nowMeta").textContent = data.error || data.stage || "failed";
+    $("signals").textContent = "—";
+    $("news").textContent = "—";
+    return;
+  }
+
+  // Now card
+  const change = data.change_abs;
+  const changePct = data.change_pct;
+  const cls = sign(change||0);
+  $("now").innerHTML = `${data.symbol} ${fmt(data.price,2)} <span class="${cls}">(${fmt(change,2)} / ${fmt(changePct,2)}%)</span>`;
+  $("nowMeta").textContent = `Prev close ${fmt(data.prev_close,2)} • Quote source: ${data.providers?.quote || "—"}`;
+
+  // Signals
+  const prob = data.probability_up;
+  const er = data.expected_return || {};
+  const items = [
+    `Upside probability: ${pct(prob)}`,
+    `Expected return (±68%): ${fmt(er.er,2)}% (${fmt(er.low,2)}..${fmt(er.high,2)}%)`,
+    `News sentiment: ${data.news_sentiment?.bucket?.toUpperCase?.() || "NEUTRAL"} (${fmt(data.news_sentiment?.score,2)})`
+  ];
+  $("signals").innerHTML = items.map(t=>`<div>• ${t}</div>`).join("");
+
+  // News
+  const bucket = (data.news_sentiment?.bucket || "neutral").toLowerCase();
+  const pillClass = bucket.startsWith("pos") ? "pill pos" : bucket.startsWith("neg") ? "pill neg" : "pill neu";
+  const hdr = `<div class="${pillClass}" style="margin-bottom:6px">${bucket.toUpperCase()}</div>`;
+  const heads = (data.top_headlines||[]).slice(0,5).map(h=>`<div>• <a href="${h.url}" target="_blank" rel="noreferrer">${h.title}</a> <span class="muted">(${h.source})</span></div>`).join("");
+  $("news").innerHTML = hdr + (heads || `<div class="muted">No recent trusted headlines</div>`);
+}
+
+async function runCompare(){
+  const list = $("lst").value.replace(/\s+/g,"");
+  const horizon = Number($("ch").value)||5;
+  const base = location.origin;
+  const url = `${base}/api/compare_proxy?symbols=${encodeURIComponent(list)}&horizon_days=${horizon}`;
+  const j = await getJSON(url);
+
+  // Export link
+  $("csv").href = `${base}/api/export_compare_csv?symbols=${encodeURIComponent(list)}&horizon_days=${horizon}`;
+
+  const tb = $("cmpTable").querySelector("tbody");
+  tb.innerHTML = "";
+
+  if(!j.ok || !Array.isArray(j.rows)){
+    tb.innerHTML = `<tr><td colspan="4" class="muted">No data (${j.error||j.stage||"failed"})</td></tr>`;
+    return;
+  }
+
+  const rows = [...j.rows].sort((a,b)=>(b.probability_up||0)-(a.probability_up||0));
+  for(const r of rows){
+    const tr = document.createElement("tr");
+    const prob = r.probability_up!=null ? (r.probability_up*100).toFixed(1)+"%" : "—";
+    const mom = r.momentum_7bar_pct!=null ? r.momentum_7bar_pct.toFixed(2)+"%" : "—";
+    const rsi = (r.signals && r.signals.rsi!=null) ? r.signals.rsi.toFixed(1) : "—";
+    tr.innerHTML = `<td>${r.symbol}</td><td>${prob}</td><td>${mom}</td><td>${rsi}</td>`;
+    tb.appendChild(tr);
+  }
+}
+
+$("go").addEventListener("click", runWhy);
+$("cmp").addEventListener("click", runCompare);
+$("sym").addEventListener("keydown", (e)=>{ if(e.key==="Enter") runWhy(); });
+
+let timer = null;
+function schedule(){
+  if(timer) clearInterval(timer);
+  if($("auto").checked){ timer = setInterval(runWhy, 30000); }
+}
+$("auto").addEventListener("change", schedule);
+
+runWhy(); runCompare(); schedule();
+</script>
