@@ -1,52 +1,71 @@
-// Normalizes and validates a single ticker symbol.
-// - Strips leading '^' or '.' (Yahoo/Google index formats).
-// - Maps common indices to tradable ETFs so downstream endpoints work.
-// - Normalizes hyphen to dot for things like BRK-B -> BRK.B.
-// - Enforces a conservative character set and length.
-function normalize(raw: string): string {
-  let s = (raw || "").trim().toUpperCase();
+// --- Normalization helpers ---------------------------------------------------
+function stripWeirdWhitespace(s: string) {
+  // remove non-breaking spaces, zero-width, etc.
+  return s.replace(/[\u00A0\u200B-\u200D\uFEFF]/g, " ").trim();
+}
 
-  // Strip common prefixes for indices
+// Map common index codes -> tradable ETFs, and tidy symbol variants.
+function normalize(raw: string): string {
+  let s = stripWeirdWhitespace((raw || "").toUpperCase());
+
+  // Strip Yahoo/Google prefixes for indices (^GSPC, .INX, .DJI, ^IXIC, etc.)
   if (s.startsWith("^") || s.startsWith(".")) s = s.slice(1);
 
-  // Normalize hyphen vs dot (prefer dot)
+  // Normalize hyphen to dot (BRK-B -> BRK.B)
   s = s.replace(/-/g, ".");
 
-  // Map common indices to ETFs (keeps the rest of the pipeline happy)
+  // Common index → ETF proxies (extendable)
   const indexMap: Record<string, string> = {
-    GSPC: "SPY",   // S&P 500 index -> SPY
-    INX: "SPY",    // .INX -> SPY
-    NDX: "QQQ",    // Nasdaq 100 -> QQQ
-    IXIC: "QQQ",   // Composite -> QQQ (approx)
-    DJI: "DIA",    // Dow Jones -> DIA
-    RUT: "IWM"     // Russell 2000 -> IWM
+    // S&P 500
+    GSPC: "SPY",
+    INX: "SPY",
+    SPX: "SPY",
+    US500: "SPY",
+
+    // Nasdaq 100
+    NDX: "QQQ",
+    IXNDX: "QQQ",
+    NAS100: "QQQ",
+    US100: "QQQ",
+
+    // Dow Jones
+    DJI: "DIA",
+    DJIA: "DIA",
+
+    // Russell 2000
+    RUT: "IWM",
+    RTY: "IWM",
+
+    // Nasdaq Composite (approx via QQQ)
+    IXIC: "QQQ"
   };
   if (s in indexMap) s = indexMap[s];
 
   return s;
 }
 
+// --- Validators --------------------------------------------------------------
 export function vSymbol(raw: string): string {
   const s = normalize(raw);
 
-  // Allow A–Z first char, then letters/digits/dot.
-  // Keep length conservative (<=10) to avoid abuse.
-  if (!/^[A-Z][A-Z0-9.]{0,9}$/.test(s)) {
+  // Allow leading letter, then letters/digits/dot. Cap length to 16 to be safe.
+  if (!/^[A-Z][A-Z0-9.]{0,15}$/.test(s)) {
     throw new Error(`Bad symbol: ${raw}`);
   }
   return s;
 }
 
 export function vSymbolsList(raw: string, max = 25): string[] {
-  const items = (raw || "").split(",").map(x => x.trim()).filter(Boolean);
+  const items = (raw || "").split(",").map(x => stripWeirdWhitespace(x)).filter(Boolean);
   if (!items.length) throw new Error("Missing symbols");
   if (items.length > max) throw new Error("Too many symbols");
+
   const out: string[] = [];
   for (const item of items) {
     try {
       out.push(vSymbol(item));
     } catch (e: any) {
-      // Bubble up which item failed
+      // Bubble up the exact bad input for clarity
       throw new Error(String(e?.message || `Bad symbol: ${item}`));
     }
   }
@@ -62,7 +81,7 @@ export function vIntInRange(raw: any, def: number, min: number, max: number): nu
 }
 
 export function vUUID(raw: string): string {
-  const s = (raw || "").trim();
+  const s = stripWeirdWhitespace(raw || "");
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) {
     throw new Error(`Bad UUID: ${raw}`);
   }
