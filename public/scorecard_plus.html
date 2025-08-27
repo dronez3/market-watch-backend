@@ -74,4 +74,150 @@
     <div id="result" class="grid hidden" style="margin-top:16px;">
       <div class="card grid">
         <div style="font-size:16px; font-weight:700;" id="headline">—</div>
-        <div class="muted" id="a
+        <div class="muted" id="analysis">—</div>
+        <div class="hr"></div>
+        <div class="row">
+          <div class="kpi"><div class="label">Prob (base)</div><div class="value" id="pBase">—</div></div>
+          <div class="kpi"><div class="label">Prob (blended)</div><div class="value" id="pBlend">—</div></div>
+          <div class="kpi"><div class="label">Exp. Return (~H)</div><div class="value" id="er">—</div></div>
+          <div class="kpi"><div class="label">68% Interval</div><div class="value" id="erBand">—</div></div>
+          <div class="kpi"><div class="label">Confidence</div><div class="value" id="erConf">—</div></div>
+        </div>
+      </div>
+
+      <div class="card grid">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div style="font-weight:700;">Technicals & Flows</div>
+          <div style="display:flex; gap:8px;">
+            <span id="techPill" class="pill">Tech —</span>
+            <span id="optPill" class="pill">Options —</span>
+            <span id="instPill" class="pill">Institutional —</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="kpi"><div class="label">RSI</div><div class="value" id="rsi">—</div></div>
+          <div class="kpi"><div class="label">SMA50</div><div class="value" id="sma50">—</div></div>
+          <div class="kpi"><div class="label">SMA200</div><div class="value" id="sma200">—</div></div>
+          <div class="kpi"><div class="label">7-bar Momentum</div><div class="value" id="mom7">—</div></div>
+        </div>
+        <div class="muted mono" id="notes"></div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:700; margin-bottom:6px;">Debug</div>
+        <pre id="debug" class="mono muted" style="margin:0; white-space:pre-wrap; word-break:break-word;">—</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const pct = (x) => (x == null || isNaN(x)) ? "—" : (Number(x) * 100).toFixed(0) + "%";
+    const pct2 = (x) => (x == null || isNaN(x)) ? "—" : Number(x).toFixed(2) + "%";
+
+    function setPill(el, label, kind="") {
+      el.textContent = label;
+      el.classList.remove("ok","warn","bad");
+      if (kind) el.classList.add(kind);
+    }
+
+    async function run() {
+      const sym = $("symbol").value.trim().toUpperCase();
+      const horizon = Number($("horizon").value || 5);
+      const hours = Number($("hours").value || 72);
+      const lookback = Number($("lookback").value || 90);
+      if (!sym) { alert("Enter a symbol"); return; }
+
+      $("status").textContent = "Running…";
+      $("result").classList.add("hidden");
+
+      const u = `${location.origin}/api/scorecard_plus_proxy?symbol=${encodeURIComponent(sym)}&horizon_days=${horizon}&hours=${hours}&lookback_days=${lookback}`;
+      const r = await fetch(u, { cache:"no-store" });
+      const data = await r.json().catch(()=>null);
+      $("debug").textContent = JSON.stringify(data, null, 2);
+
+      if (!r.ok || !data || data.ok !== true) {
+        $("status").textContent = `Error: ${r.status}`;
+        $("result").classList.remove("hidden");
+        $("headline").textContent = `${sym} — error`;
+        $("analysis").textContent = (data && data.error) ? data.error : "Request failed";
+        return;
+      }
+
+      $("status").textContent = "Done.";
+      $("result").classList.remove("hidden");
+
+      $("headline").textContent = `${sym} — ${(data.probability_blended*100).toFixed(0)}% Upside (Blended)`;
+      $("analysis").textContent = data.analysis || "—";
+
+      $("pBase").textContent = pct(data.probability_base);
+      $("pBlend").textContent = pct(data.probability_blended);
+
+      if (data.expected_return && data.expected_return.available !== false) {
+        $("er").textContent = pct2(data.expected_return.pct);
+        const band = data.expected_return.conf68;
+        $("erBand").textContent = (band && band.low != null && band.high != null)
+          ? `${pct2(band.low)} .. ${pct2(band.high)}`
+          : "—";
+        $("erConf").textContent = data.expected_return.confidence != null
+          ? (Number(data.expected_return.confidence) * 100).toFixed(0) + "%"
+          : "—";
+      } else {
+        $("er").textContent = "—";
+        $("erBand").textContent = "—";
+        $("erConf").textContent = "—";
+      }
+
+      const rsi = data.technicals?.rsi ?? null;
+      const sma50 = data.technicals?.sma50 ?? null;
+      const sma200 = data.technicals?.sma200 ?? null;
+      $("rsi").textContent = rsi == null ? "—" : Math.round(rsi);
+      $("sma50").textContent = sma50 == null ? "—" : Math.round(sma50);
+      $("sma200").textContent = sma200 == null ? "—" : Math.round(sma200);
+
+      const trend = (sma50 != null && sma200 != null) ? (sma50 > sma200 ? "uptrend" : sma50 < sma200 ? "downtrend" : "neutral") : "missing";
+      if (trend === "uptrend") setPill($("techPill"), "Tech — uptrend", "ok");
+      else if (trend === "downtrend") setPill($("techPill"), "Tech — downtrend", "bad");
+      else setPill($("techPill"), "Tech — missing/neutral", "warn");
+
+      const mom7 = data.momentum_7bar_pct;
+      $("mom7").textContent = mom7 == null ? "—" : Number(mom7).toFixed(2) + "%";
+
+      const opt = data.components?.options?.data;
+      if (opt && opt.ok && opt.found !== false) {
+        setPill($("optPill"), `Options ${opt.label}`, opt.label === "bullish" ? "ok" : opt.label === "bearish" ? "bad" : "warn");
+      } else setPill($("optPill"), "Options — n/a", "warn");
+
+      const inst = data.components?.institutional?.data;
+      if (inst && inst.ok && inst.found !== false) {
+        setPill($("instPill"), `Institutional ${inst.label}`, inst.label === "bullish" ? "ok" : inst.label === "bearish" ? "bad" : "warn");
+      } else setPill($("instPill"), "Institutional — n/a", "warn");
+
+      $("notes").textContent = `RSI ${$("rsi").textContent} • SMA50 ${$("sma50").textContent} vs SMA200 ${$("sma200").textContent} • 7-bar momentum ${$("mom7").textContent}`;
+    }
+
+    $("run").addEventListener("click", run);
+    $("copyLink").addEventListener("click", () => {
+      const sym = $("symbol").value.trim().toUpperCase() || "AAPL";
+      const horizon = Number($("horizon").value || 5);
+      const hours = Number($("hours").value || 72);
+      const lookback = Number($("lookback").value || 90);
+      const link = `${location.origin}/api/scorecard_plus_proxy?symbol=${encodeURIComponent(sym)}&horizon_days=${horizon}&hours=${hours}&lookback_days=${lookback}`;
+      navigator.clipboard.writeText(link).then(() => $("status").textContent = "Copied API link.");
+    });
+
+    // Auto-run if query present
+    (function initFromQuery(){
+      const q = new URLSearchParams(location.search);
+      const sym = (q.get("symbol") || "").toUpperCase();
+      if (sym) {
+        $("symbol").value = sym;
+        if (q.get("horizon_days")) $("horizon").value = q.get("horizon_days");
+        if (q.get("hours")) $("hours").value = q.get("hours");
+        if (q.get("lookback_days")) $("lookback").value = q.get("lookback_days");
+        run();
+      }
+    })();
+  </script>
+</body>
+</html>
