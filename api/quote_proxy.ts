@@ -12,19 +12,38 @@ function json(data: any, status = 200) {
 }
 
 async function yahooQuote(symbol: string) {
-  const u = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`;
-  const r = await fetch(u, { cache: "no-store" });
-  if (!r.ok) throw new Error(`yahoo status ${r.status}`);
-  const j = await r.json();
-  const q = j?.quoteResponse?.result?.[0];
-  if (!q) throw new Error("yahoo empty");
-  return {
-    price: q.regularMarketPrice ?? null,
-    time: q.regularMarketTime ? new Date(q.regularMarketTime * 1000).toISOString() : null,
-    currency: q.currency ?? null,
-    name: q.shortName ?? q.longName ?? symbol,
-    source: "yahoo"
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (compatible; MarketWatchBot/1.0)",
+    "Accept": "application/json",
   };
+
+  const urls = [
+    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`,
+    `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`,
+  ];
+
+  let lastStatus = 0;
+  let lastText = "";
+  for (const u of urls) {
+    const r = await fetch(u, { cache: "no-store", headers });
+    lastStatus = r.status;
+    const ct = r.headers.get("content-type") || "";
+    if (!r.ok) { try { lastText = await r.text(); } catch {} ; continue; }
+    const j = ct.includes("application/json") ? await r.json() : null;
+    const q = j?.quoteResponse?.result?.[0];
+    if (q) {
+      return {
+        ok: true,
+        symbol,
+        price: q.regularMarketPrice ?? null,
+        time: q.regularMarketTime ? new Date(q.regularMarketTime * 1000).toISOString() : null,
+        currency: q.currency ?? null,
+        name: q.shortName ?? q.longName ?? symbol,
+        source: u.includes("query1") ? "yahoo-q1" : "yahoo-q2"
+      };
+    }
+  }
+  return { ok: false, stage: "yahooQuote", status: lastStatus, error: lastText || "no result" };
 }
 
 export default async function handler(req: Request) {
@@ -37,16 +56,14 @@ export default async function handler(req: Request) {
   try {
     const url = new URL(req.url);
     let symbol: string;
-    try {
-      symbol = vSymbol(url.searchParams.get("symbol") || "");
-    } catch (e: any) {
-      return withCORS(json({ ok:false, error:String(e?.message || e) }, 400), req);
-    }
+    try { symbol = vSymbol(url.searchParams.get("symbol") || ""); }
+    catch (e: any) { return withCORS(json({ ok:false, stage:"validate", error:String(e?.message || e) }, 400), req); }
 
-    const q = await yahooQuote(symbol);
+    const res = await yahooQuote(symbol);
+    if (!res.ok) return withCORS(json(res, 502), req);
 
-    return withCORS(json({ ok:true, symbol, ...q }), req);
+    return withCORS(json(res), req);
   } catch (e: any) {
-    return withCORS(json({ ok:false, error:String(e?.message || e) }, 502), req);
+    return withCORS(json({ ok:false, stage:"top", error:String(e?.message || e) }, 502), req);
   }
 }
