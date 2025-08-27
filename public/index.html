@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Market Watch — Home</title>
+  <style>
+    :root { --bg:#0b1020; --card:#151b2e; --text:#e7ecf5; --muted:#9fb0d1; --accent:#5ee6a8; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--text); }
+    header { padding:20px 16px; border-bottom:1px solid #20263f; background:#0e1430; position:sticky; top:0; z-index:10; }
+    h1 { margin:0; font-size:20px; letter-spacing:.3px; }
+    .wrap { max-width:980px; margin:0 auto; padding:20px 16px; }
+    .grid { display:grid; gap:16px; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+    .card { background:var(--card); border:1px solid #232a44; border-radius:14px; padding:16px; box-shadow:0 6px 24px rgba(0,0,0,.25); }
+    label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
+    input, button, a.btn { width:100%; padding:10px 12px; border-radius:10px; border:1px solid #2a3356; background:#0f1533; color:var(--text); text-decoration:none; text-align:center; display:inline-block; }
+    button { cursor:pointer; border-color:#38406b; font-weight:600; }
+    .primary { background:linear-gradient(180deg,#2cd4ff,#6cf3c5); color:#0a0f22; border:none; }
+    .muted { color:var(--muted); }
+    .pill { display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid #2a3356; color:var(--muted); text-decoration:none; }
+    .hr { height:1px; background:#222a48; margin:12px 0; }
+    @media (max-width: 860px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+      <h1>📚 Market Watch — Launcher</h1>
+      <div style="display:flex; gap:8px;">
+        <a class="pill" href="/api/ping" target="_blank">API Ping</a>
+        <a class="pill" href="/openapi.json" target="_blank">OpenAPI</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap grid">
+
+    <!-- Quick Ticker -->
+    <div class="card grid">
+      <div class="row">
+        <div>
+          <label>Symbol</label>
+          <input id="symbol" placeholder="e.g., AAPL" value="AAPL"/>
+        </div>
+        <div>
+          <label>Horizon (days)</label>
+          <input id="horizon" type="number" min="1" max="14" value="5"/>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Window (hours) for sentiment</label>
+          <input id="hours" type="number" min="6" max="168" value="72"/>
+        </div>
+        <div>
+          <label>Lookback (days) for expected return</label>
+          <input id="lookback" type="number" min="20" max="250" value="90"/>
+        </div>
+      </div>
+      <div class="row">
+        <button class="primary" id="goPlus">Open Scorecard Plus</button>
+        <button id="goScore">Open Scorecard (classic)</button>
+      </div>
+      <div id="status" class="muted">Ready.</div>
+    </div>
+
+    <!-- Tools -->
+    <div class="row">
+      <div class="card grid">
+        <div style="font-weight:700;">Tools</div>
+        <a class="btn" href="/compare.html">Compare (SPY vs QQQ or list)</a>
+        <a class="btn" href="/portfolio.html?user=7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11&hours=72">Portfolio (demo user)</a>
+      </div>
+
+      <div class="card grid">
+        <div style="font-weight:700;">Direct API Links</div>
+        <a class="btn" id="apiScore" target="_blank" href="#">/api/scorecard_proxy</a>
+        <a class="btn" id="apiScorePlus" target="_blank" href="#">/api/scorecard_plus_proxy</a>
+        <a class="btn" id="apiExpected" target="_blank" href="#">/api/expected_return</a>
+        <a class="btn" id="apiCompare" target="_blank" href="/api/compare_proxy?symbols=SPY,QQQ&horizon_days=5" target="_blank">/api/compare_proxy (SPY,QQQ)</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700;">Notes</div>
+      <div class="hr"></div>
+      <div class="muted">
+        • Scorecard Plus adds Expected Return with a 68% interval.<br/>
+        • Compare ranks by short-term upside probability and shows momentum & sentiment.<br/>
+        • Portfolio uses server-injected tokens via action endpoints—safe to share.<br/>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    function buildLinks() {
+      const sym = $("symbol").value.trim().toUpperCase() || "AAPL";
+      const horizon = Number($("horizon").value || 5);
+      const hours = Number($("hours").value || 72);
+      const lookback = Number($("lookback").value || 90);
+
+      const plus = `${location.origin}/api/scorecard_plus_proxy?symbol=${encodeURIComponent(sym)}&horizon_days=${horizon}&hours=${hours}&lookback_days=${lookback}`;
+      const classic = `${location.origin}/api/scorecard_proxy?symbol=${encodeURIComponent(sym)}&horizon_days=${horizon}&hours=${hours}`;
+      const expected = `${location.origin}/api/expected_return?symbol=${encodeURIComponent(sym)}&horizon_days=${horizon}&lookback_days=${lookback}`;
+
+      $("apiScore").href = classic;
+      $("apiScorePlus").href = plus;
+      $("apiExpected").href = expected;
+
+      return { plus, classic };
+    }
+
+    $("goPlus").addEventListener("click", () => {
+      const { plus } = buildLinks();
+      const sym = $("symbol").value.trim().toUpperCase() || "AAPL";
+      const horizon = $("horizon").value || "5";
+      const hours = $("hours").value || "72";
+      const lookback = $("lookback").value || "90";
+      location.href = `/scorecard_plus.html?symbol=${encodeURIComponent(sym)}&horizon_days=${horizon}&hours=${hours}&lookback_days=${lookback}`;
+    });
+
+    $("goScore").addEventListener("click", () => {
+      const sym = $("symbol").value.trim().toUpperCase() || "AAPL";
+      const horizon = $("horizon").value || "5";
+      const hours = $("hours").value || "72";
+      location.href = `/scorecard.html?symbol=${encodeURIComponent(sym)}&horizon_days=${horizon}&hours=${hours}`;
+    });
+
+    ["symbol","horizon","hours","lookback"].forEach(id => {
+      $(id).addEventListener("input", () => { buildLinks(); $("status").textContent = "Ready."; });
+    });
+
+    // initialize links on load
+    buildLinks();
+  </script>
+</body>
+</html>
