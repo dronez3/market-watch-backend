@@ -19,7 +19,6 @@ type Article = {
   sentiment: number | null;
 };
 
-// Keep a tight whitelist of reputable domains
 const TRUSTED = [
   "reuters.com", "apnews.com", "wsj.com", "ft.com",
   "cnbc.com", "marketwatch.com", "investors.com"
@@ -28,7 +27,6 @@ const TRUSTED = [
 function isoHoursAgo(h: number) {
   return new Date(Date.now() - h * 3600 * 1000).toISOString();
 }
-
 function hostOf(u: string): string {
   try { return new URL(u).hostname.replace(/^www\./,""); } catch { return ""; }
 }
@@ -36,15 +34,23 @@ function hostOf(u: string): string {
 async function fetchMarketaux(symbol: string, hours: number, limit: number) {
   const key = process.env.MARKETAUX_API_KEY;
   if (!key) return { ok:false, stage:"marketaux", error:"no key" as const };
+
   const since = isoHoursAgo(hours);
-  const domains = TRUSTED.join(",");
-  const url =
+  const base =
     `https://api.marketaux.com/v1/news/all?symbols=${encodeURIComponent(symbol)}` +
     `&published_after=${encodeURIComponent(since)}&language=en&filter_entities=true` +
-    `&limit=${limit}&api_token=${key}&domains=${encodeURIComponent(domains)}`;
+    `&limit=${limit}&api_token=${key}`;
 
-  const r = await fetch(url, { cache:"no-store" });
+  // First try with domain filter (better quality)
+  const withDomains = `${base}&domains=${encodeURIComponent(TRUSTED.join(","))}`;
+  let r = await fetch(withDomains, { cache:"no-store" });
+
+  // Some plans reject the domains filter → on 400, retry without it
+  if (r.status === 400) {
+    r = await fetch(`${base}&countries=us`, { cache:"no-store" });
+  }
   if (!r.ok) return { ok:false, stage:"marketaux", error:`status ${r.status}` as const };
+
   const j: any = await r.json().catch(() => null);
   const data: any[] = Array.isArray(j?.data) ? j.data : [];
   const articles: Article[] = data
@@ -62,15 +68,16 @@ async function fetchMarketaux(symbol: string, hours: number, limit: number) {
 async function fetchNewsAPI(symbol: string, hours: number, limit: number) {
   const key = process.env.NEWSAPI_API_KEY;
   if (!key) return { ok:false, stage:"newsapi", error:"no key" as const };
+
   const since = isoHoursAgo(hours);
-  const domains = TRUSTED.join(",");
   const url =
     `https://newsapi.org/v2/everything?q=${encodeURIComponent(symbol)}` +
     `&from=${encodeURIComponent(since)}&language=en&sortBy=publishedAt&pageSize=${limit}` +
-    `&domains=${encodeURIComponent(domains)}`;
+    `&domains=${encodeURIComponent(TRUSTED.join(","))}`;
 
   const r = await fetch(url, { headers: { "X-Api-Key": key }, cache:"no-store" });
   if (!r.ok) return { ok:false, stage:"newsapi", error:`status ${r.status}` as const };
+
   const j: any = await r.json().catch(() => null);
   const data: any[] = Array.isArray(j?.articles) ? j.articles : [];
   const articles: Article[] = data
@@ -86,24 +93,26 @@ async function fetchNewsAPI(symbol: string, hours: number, limit: number) {
 }
 
 async function fetchGDELT(symbol: string, hours: number, limit: number) {
-  // GDELT v2 search
+  // GDELT search (very permissive; we filter domains ourselves)
   const end = new Date();
   const start = new Date(Date.now() - hours * 3600 * 1000);
-  function yyyymmddhhmmss(d: Date) {
-    const pad = (n: number, w=2) => String(n).toString().padStart(w,"0");
-    return d.getUTCFullYear() + pad(d.getUTCMonth()+1) + pad(d.getUTCDate()) +
-           pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds());
-  }
-  const url =
-    `https://api.gdeltproject.org/api/v2/searchapi/search?query=${encodeURIComponent(symbol)}` +
-    `&mode=ArtList&maxrecords=${limit}&startdatetime=${yyyymmddhhmmss(start)}` +
-    `&enddatetime=${yyyymmddhhmmss(end)}&format=json`;
+  const pad = (n: number, w=2) => String(n).padStart(w,"0");
+  const stamp = (d: Date) =>
+    d.getUTCFullYear() + pad(d.getUTCMonth()+1) + pad(d.getUTCDate()) +
+    pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds());
 
-  const r = await fetch(url, { cache:"no-store" });
+  // Try a richer query that often returns results
+  const q = `("${symbol}" OR "Apple Inc" OR "Apple")`;
+
+  let r = await fetch(
+    `https://api.gdeltproject.org/api/v2/searchapi/search?query=${encodeURIComponent(q)}&mode=ArtList&maxrecords=${limit}&startdatetime=${stamp(start)}&enddatetime=${stamp(end)}&format=JSON`,
+    { cache:"no-store" }
+  );
   if (!r.ok) return { ok:false, stage:"gdelt", error:`status ${r.status}` as const };
+
   const j: any = await r.json().catch(() => null);
-  const data: any[] = Array.isArray(j?.articles) ? j.articles : (Array.isArray(j?.artList) ? j.artList : []);
-  const articles: Article[] = data
+  const arr: any[] = Array.isArray(j?.articles) ? j.articles : (Array.isArray(j?.artList) ? j.artList : []);
+  const articles: Article[] = arr
     .map((a: any): Article => {
       const u: string = (a?.url as string) ?? (a?.seurl as string) ?? "";
       return {
@@ -131,7 +140,6 @@ function deDupe(list: Article[]): Article[] {
 export default async function handler(req: Request) {
   const pf = preflight(req); if (pf) return pf;
 
-  // 60 requests per 60s per IP
   const limited = await rateGate(req, "news_proxy", 60, 60);
   if (limited) return withCORS(limited, req);
 
@@ -144,7 +152,7 @@ export default async function handler(req: Request) {
     const hours = Math.max(1, Math.min(Number(url.searchParams.get("hours") || 72), 240));
     const limit = Math.max(5, Math.min(Number(url.searchParams.get("limit") || 25), 50));
     const force = url.searchParams.get("force") === "true";
-    const ttl = Math.max(30, Math.min(Number(url.searchParams.get("ttl") || 300), 3600)); // default 5m
+    const ttl = Math.max(30, Math.min(Number(url.searchParams.get("ttl") || 300), 3600));
 
     const key = `news:${symbol}:h=${hours}:n=${limit}`;
     if (!force) {
@@ -152,16 +160,21 @@ export default async function handler(req: Request) {
       if (hit.hit) return withCORS(json({ ok:true, cached:true, ...hit.value }), req);
     }
 
-    // Provider chain: Marketaux → NewsAPI → GDELT
-    const m = await fetchMarketaux(symbol, hours, limit);
-    const n = (m as any).ok ? m : await fetchNewsAPI(symbol, hours, limit);
-    const g = (n as any).ok ? n : await fetchGDELT(symbol, hours, limit);
-    const res: any = (g as any).ok ? g : n;
+    // Provider chain
+    let res: any = await fetchMarketaux(symbol, hours, limit);
+    if (!res.ok) res = await fetchNewsAPI(symbol, hours, limit);
+    if (!res.ok) res = await fetchGDELT(symbol, hours, limit);
 
-    if (!res?.ok) return withCORS(json({ ok:false, stage:"providers_failed", marketaux:m, newsapi:n, gdelt:g }, 502), req);
+    // Graceful empty result if all failed or zero articles
+    let provider = res.ok ? res.provider : "none";
+    let arts: Article[] = res.ok ? deDupe(res.articles as Article[]) : [];
+    if (!arts.length) {
+      const payload = { ok:true, provider, symbol, count: 0, articles: [] as Article[] };
+      await cachePut(key, payload, ttl);
+      return withCORS(json(payload), req);
+    }
 
-    const arts = deDupe(res.articles as Article[]).slice(0, limit);
-    const payload = { ok:true, provider: res.provider, symbol, count: arts.length, articles: arts };
+    const payload = { ok:true, provider, symbol, count: arts.length, articles: arts.slice(0, limit) };
     await cachePut(key, payload, ttl);
     return withCORS(json(payload), req);
   } catch (e: any) {
