@@ -4,36 +4,38 @@ import { getServiceClient } from "../_supabase";
 export const config = { runtime: "edge" };
 
 /**
- * Vercel Cron entrypoint for batch sentiment.
+ * Batch sentiment rollup for multiple symbols.
  * Auth:
- *  - Production cron: request includes "x-vercel-cron" header (Vercel-managed).
- *  - Manual test (browser): provide ?token=ACTIONS_BEARER_TOKEN
+ *  - Vercel Cron: request has header "x-vercel-cron" (allowed)
+ *  - Manual test in browser: provide ?token=ACTIONS_BEARER_TOKEN
  *
  * Inputs:
- *  - From env:
+ *  - From env (optional):
  *      CRON_SYMBOLS="AAPL,TSLA,NVDA,MSFT,SPY,QQQ"
  *      CRON_LOOKBACK_HOURS="72"
- *  - Optional overrides (query):
+ *  - Query overrides (optional):
  *      ?symbols=AAPL,TSLA&hours=48
  */
 export default async function handler(req: Request) {
   const url = new URL(req.url);
   const hasCronHeader = req.headers.has("x-vercel-cron");
-  const token = url.searchParams.get("token") || "";
+  const tokenParam = url.searchParams.get("token") || "";
   const expected = process.env.ACTIONS_BEARER_TOKEN || "";
 
   // Allow either Vercel Cron header OR manual token for testing
   if (!hasCronHeader) {
     if (!expected) return jsonResponse({ ok: false, error: "Server missing ACTIONS_BEARER_TOKEN" }, 500);
-    if (token !== expected) return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+    if (tokenParam !== expected) return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
   }
 
-  const envSyms = (process.env.CRON_SYMBOLS || "").split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
-  const paramSyms = (url.searchParams.get("symbols") || "").split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
-  const symbols = (paramSyms.length ? paramSyms : envSyms);
+  const envSyms = (process.env.CRON_SYMBOLS || "")
+    .split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+  const paramSyms = (url.searchParams.get("symbols") || "")
+    .split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+  const symbols = paramSyms.length ? paramSyms : envSyms;
 
   if (!symbols.length) {
-    return jsonResponse({ ok: false, error: "No symbols configured. Set CRON_SYMBOLS or use ?symbols=AAPL,TSLA" }, 400);
+    return jsonResponse({ ok: false, error: "No symbols configured. Set CRON_SYMBOLS or pass ?symbols=AAPL,TSLA" }, 400);
   }
 
   const hours = Number(url.searchParams.get("hours") || process.env.CRON_LOOKBACK_HOURS || 72);
@@ -69,17 +71,17 @@ export default async function handler(req: Request) {
         if (negative.includes(t)) scoreSum -= 1;
       }
     }
-    const score = tokenCount > 0 ? scoreSum / tokenCount : 0;
+    const raw = tokenCount > 0 ? scoreSum / tokenCount : 0;
 
     await supabase.from("sentiment_scores").insert({
       symbol,
       window_start: windowStart.toISOString(),
       window_end: windowEnd.toISOString(),
-      score,
+      score: raw,
       n_articles: articles?.length ?? 0
     });
 
-    results.push({ symbol, n_articles: articles?.length ?? 0, score: Number(score.toFixed(3)) });
+    results.push({ symbol, n_articles: articles?.length ?? 0, score: Number(raw.toFixed(3)) });
   }
 
   return jsonResponse({ ok: true, window_hours: hours, symbols, results });
