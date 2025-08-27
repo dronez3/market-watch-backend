@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Market Watch — Scorecard Plus</title>
+  <style>
+    :root { --bg:#0b1020; --card:#151b2e; --text:#e7ecf5; --muted:#9fb0d1; --accent:#5ee6a8; --warn:#ffc65c; --bad:#ff7a7a; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; background: var(--bg); color: var(--text); }
+    header { padding: 20px 16px; border-bottom: 1px solid #20263f; background: #0e1430; position: sticky; top:0; z-index: 10; }
+    h1 { margin:0; font-size: 20px; letter-spacing: .3px; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px; }
+    .card { background: var(--card); border: 1px solid #232a44; border-radius: 14px; padding: 16px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+    .row { display: grid; grid-template-columns: 1fr 120px 120px 140px; gap: 12px; }
+    label { font-size: 12px; color: var(--muted); display:block; margin-bottom: 6px; }
+    input, button { width:100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #2a3356; background: #0f1533; color: var(--text); }
+    button { cursor: pointer; border-color:#38406b; font-weight: 600; }
+    button.primary { background: linear-gradient(180deg,#2cd4ff,#6cf3c5); color: #0a0f22; border: none; }
+    .grid { display:grid; gap:12px; }
+    .kpi { display:grid; gap:6px; padding:10px; background:#101737; border:1px solid #263059; border-radius:12px; }
+    .kpi .label { font-size:12px; color:var(--muted); }
+    .kpi .value { font-size:18px; font-weight:700; }
+    .pill { display:inline-flex; align-items:center; padding: 4px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #2a3356; }
+    .pill.ok { background: rgba(94,230,168,.12); border-color: rgba(94,230,168,.4); color: var(--accent); }
+    .pill.warn { background: rgba(255,198,92,.12); border-color: rgba(255,198,92,.4); color: var(--warn); }
+    .pill.bad { background: rgba(255,122,122,.12); border-color: rgba(255,122,122,.4); color: var(--bad); }
+    .muted { color: var(--muted); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    .hr { height:1px; background:#222a48; margin:12px 0; }
+    .hidden { display:none; }
+    @media (max-width: 860px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap" style="display:flex; align-items:center; gap:10px; justify-content:space-between;">
+      <h1>📈 Market Watch — Scorecard Plus</h1>
+      <div style="display:flex; gap:8px;">
+        <a class="pill muted" href="/scorecard.html" style="text-decoration:none;">Scorecard</a>
+        <a class="pill muted" href="/compare.html" style="text-decoration:none;">Compare</a>
+        <a class="pill muted" href="/portfolio.html" style="text-decoration:none;">Portfolio</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="card grid">
+      <div class="row">
+        <div>
+          <label>Symbol</label>
+          <input id="symbol" placeholder="e.g., AAPL" value="AAPL" />
+        </div>
+        <div>
+          <label>Horizon (days)</label>
+          <input id="horizon" type="number" min="1" max="14" value="5" />
+        </div>
+        <div>
+          <label>Window (hours) for sentiment</label>
+          <input id="hours" type="number" min="6" max="168" value="72" />
+        </div>
+        <div>
+          <label>Lookback (days) for expected return</label>
+          <input id="lookback" type="number" min="20" max="250" value="90" />
+        </div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="primary" id="run">Run Scorecard Plus</button>
+        <button id="copyLink">Copy API Link</button>
+      </div>
+      <div id="status" class="muted">Ready.</div>
+    </div>
+
+    <div id="result" class="grid hidden" style="margin-top:16px;">
+      <div class="card grid">
+        <div style="font-size:16px; font-weight:700;" id="headline">—</div>
+        <div class="muted" id="a
