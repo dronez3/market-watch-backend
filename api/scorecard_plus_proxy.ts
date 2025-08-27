@@ -1,5 +1,8 @@
 export const config = { runtime: "edge" };
 
+import { rateGate } from "./_rate";
+import { vSymbol, vIntInRange } from "./_validate";
+
 // Minimal JSON helper
 function json(data: any, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -26,14 +29,24 @@ async function getJSON(u: string) {
  * GET /api/scorecard_plus_proxy?symbol=AAPL&horizon_days=5&hours=72&lookback_days=90
  */
 export default async function handler(req: Request) {
+  // Rate limit: 60 req / 60s per IP for this route
+  const limited = await rateGate(req, "scorecard_plus", 60, 60);
+  if (limited) return limited;
+
   try {
     const url = new URL(req.url);
     const origin = `${url.protocol}//${url.host}`;
-    const symbol = (url.searchParams.get("symbol") || "").toUpperCase();
-    const horizonDays = Number(url.searchParams.get("horizon_days") || 5);
-    const hours = Number(url.searchParams.get("hours") || 72);
-    const lookback = Number(url.searchParams.get("lookback_days") || 90);
-    if (!symbol) return json({ ok:false, error:"Missing ?symbol=XXX" }, 400);
+
+    // Strict validation
+    let symbol: string, horizonDays: number, hours: number, lookback: number;
+    try {
+      symbol = vSymbol(url.searchParams.get("symbol") || "");
+      horizonDays = vIntInRange(url.searchParams.get("horizon_days"), 5, 1, 14);
+      hours = vIntInRange(url.searchParams.get("hours"), 72, 6, 168);
+      lookback = vIntInRange(url.searchParams.get("lookback_days"), 90, 20, 250);
+    } catch (e: any) {
+      return json({ ok:false, error: `Validation failed: ${String(e?.message || e)}` }, 400);
+    }
 
     // Upstream URLs (all public)
     const probUrl  = `${origin}/api/prob?symbol=${encodeURIComponent(symbol)}&horizon_days=${encodeURIComponent(String(horizonDays))}`;
@@ -56,7 +69,7 @@ export default async function handler(req: Request) {
     const optTilt  = (opts.ok && opts.data?.ok && opts.data?.found !== false) ? Number(opts.data.tilt ?? 0) : 0; // [-1..1]
     const instTilt = (inst.ok && inst.data?.ok && inst.data?.found !== false) ? Number(inst.data.tilt ?? 0) : 0;  // [-1..1]
 
-    // Blended probability (same scheme as before)
+    // Blended probability
     let blended = baseP + 0.05 * optTilt + 0.05 * instTilt;
     blended = Math.max(0.05, Math.min(0.95, blended));
 
@@ -110,7 +123,6 @@ export default async function handler(req: Request) {
       momentum_7bar_pct: mom7 != null ? Number(Number(mom7).toFixed(2)) : null,
       action,
       analysis: parts.join(" • "),
-      // keep upstream for debugging
       components: { prob, tech, options: opts, institutional: inst, expected_return: exp },
       sources: { probUrl, techUrl, optUrl, instUrl, expUrl }
     });
