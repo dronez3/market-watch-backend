@@ -1,46 +1,83 @@
-import { jsonResponse } from "./_common";
+import { jsonResponse, requireBearer } from "./_common";
 import { getServiceClient } from "./_supabase";
 
 export const config = { runtime: "edge" };
 
-/**
- * TEMP: Direct-link news ingest.
- * Example:
- * /api/news_ingest_link?token=TOKEN&symbol=AAPL&published_at=2025-08-26T13:00:00Z&title=CPI%20cools%20again&source=ExampleWire&url=https%3A%2F%2Fexample.com%2Fmacro%2Fcpi-cools&content=Headline%20easing%3B%20goods%20deflation
- */
+type News = {
+  symbol: string;
+  published_at: string; // ISO
+  source?: string; title: string; url?: string; content?: string;
+};
+
+const POS = ["beat","beats","surge","up","gain","bull","strong","optimistic","positive","record","grow","growth"];
+const NEG = ["miss","falls","down","drop","bear","weak","pessimistic","negative","cut","loss","decline","risk"];
+
 export default async function handler(req: Request) {
-  const url = new URL(req.url);
-  const token = url.searchParams.get("token") || "";
-  const expected = process.env.ACTIONS_BEARER_TOKEN || "";
-  if (!expected) return jsonResponse({ ok: false, error: "Server missing ACTIONS_BEARER_TOKEN" }, 500);
-  if (token !== expected) return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+  const auth = requireBearer(req);
+  if (!auth.ok) return jsonResponse({ ok: false, error: auth.err }, auth.status);
+  if (req.method !== "POST") return jsonResponse({ ok: false, error: "Use POST" }, 405);
 
-  const symbol = (url.searchParams.get("symbol") || "").toUpperCase();
-  const published_at = url.searchParams.get("published_at") || "";
-  const title = url.searchParams.get("title") || "";
-  const source = url.searchParams.get("source");
-  const link = url.searchParams.get("url");
-  const content = url.searchParams.get("content");
+  let body: { items: News[]; lookback_hours?: number } | null = null;
+  try { body = await req.json(); } catch { return jsonResponse({ ok: false, error: "Invalid JSON" }, 400); }
 
-  if (!symbol || !published_at || !title) {
-    return jsonResponse({ ok: false, error: "Missing required params: symbol, published_at, title" }, 400);
+  const items = body?.items || [];
+  const lookbackHours = Number(body?.lookback_hours ?? 72);
+  if (!Array.isArray(items) || items.length === 0) {
+    return jsonResponse({ ok: false, error: "Provide { items: News[] }" }, 400);
   }
 
-  const row = {
-    symbol,
-    published_at: new Date(published_at).toISOString(),
-    source: source ?? null,
-    title,
-    url: link ?? null,
-    content: content ?? null
-  };
+  const supabase = getServiceClient();
 
-  try {
-    const supabase = getServiceClient();
-    const { data, error } = await supabase.from("news_articles").insert([row]).select();
-    if (error) return jsonResponse({ ok: false, stage: "insert", error: error.message }, 500);
-    return jsonResponse({ ok: true, count: data?.length ?? 1, item: data?.[0] ?? row });
-  } catch (e: any) {
-    return jsonResponse({ ok: false, stage: "exception", error: String(e?.message || e) }, 500);
+  // Insert news
+  const rows = items.map(n => ({
+    symbol: n.symbol.toUpperCase(),
+    published_at: new Date(n.published_at).toISOString(),
+    source: n.source ?? null,
+    title: n.title,
+    url: n.url ?? null,
+    content: n.content ?? null
+  }));
+
+  const { error: insErr } = await supabase.from("news_articles").insert(rows);
+  if (insErr) return jsonResponse({ ok: false, stage: "insert_news", error: insErr.message }, 500);
+
+  // Recompute sentiment for each affected symbol (last 72h default)
+  const affected = Array.from(new Set(rows.map(r => r.symbol)));
+  const windowEnd = new Date();
+  const windowStart = new Date(windowEnd.getTime() - lookbackHours * 3600 * 1000);
+
+  let updated = 0;
+  for (const symbol of affected) {
+    const { data: articles, error: selErr } = await supabase
+      .from("news_articles")
+      .select("title, content")
+      .eq("symbol", symbol)
+      .gte("published_at", windowStart.toISOString())
+      .lte("published_at", windowEnd.toISOString());
+
+    if (selErr) continue;
+
+    let scoreSum = 0, tokenCount = 0;
+    for (const a of (articles || [])) {
+      const text = `${a.title || ""} ${a.content || ""}`.toLowerCase();
+      const tokens = text.split(/\W+/).filter(Boolean);
+      tokenCount += tokens.length;
+      for (const t of tokens) {
+        if (POS.includes(t)) scoreSum += 1;
+        if (NEG.includes(t)) scoreSum -= 1;
+      }
+    }
+    const score = tokenCount > 0 ? scoreSum / tokenCount : 0;
+
+    const { error: sentErr } = await supabase.from("sentiment_scores").insert({
+      symbol,
+      window_start: windowStart.toISOString(),
+      window_end: windowEnd.toISOString(),
+      score,
+      n_articles: (articles || []).length
+    });
+    if (!sentErr) updated++;
   }
+
+  return jsonResponse({ ok: true, inserted_news: rows.length, updated_symbols: updated, symbols: affected });
 }
