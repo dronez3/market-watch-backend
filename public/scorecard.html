@@ -51,3 +51,188 @@
   <div class="wrap">
     <div class="card grid">
       <div class="row">
+        <div>
+          <label>Symbol</label>
+          <input id="symbol" placeholder="e.g., AAPL" value="AAPL" />
+        </div>
+        <div>
+          <label>Horizon (days)</label>
+          <input id="horizon" type="number" min="1" max="14" value="5" />
+        </div>
+        <div>
+          <label>Window (hours) for sentiment</label>
+          <input id="hours" type="number" min="6" max="168" value="72" />
+        </div>
+      </div>
+      <div class="row-2">
+        <button class="primary" id="run">Run Scorecard</button>
+        <button class="ghost" id="copyLink">Copy Shareable Link</button>
+      </div>
+      <div id="status" class="muted">Ready.</div>
+    </div>
+
+    <div id="result" class="grid hidden" style="margin-top:16px;">
+      <div class="card">
+        <div id="headline" style="font-size:16px; font-weight:700; margin-bottom:6px;">—</div>
+        <div id="analysis" class="muted">—</div>
+        <div class="hr"></div>
+        <div class="row">
+          <div class="kpi"><div class="label">Probability (base)</div><div class="value" id="pBase">—</div></div>
+          <div class="kpi"><div class="label">Probability (blended)</div><div class="value" id="pBlend">—</div></div>
+          <div class="kpi"><div class="label">Action</div><div class="value" id="action">—</div></div>
+        </div>
+      </div>
+
+      <div class="row-2">
+        <div class="card grid">
+          <div style="display:flex; align-items:center; gap:8px; justify-content:space-between;">
+            <div style="font-weight:700;">Technicals</div>
+            <span id="techPill" class="pill">—</span>
+          </div>
+          <div class="row">
+            <div class="kpi"><div class="label">RSI</div><div class="value" id="rsi">—</div></div>
+            <div class="kpi"><div class="label">SMA50</div><div class="value" id="sma50">—</div></div>
+            <div class="kpi"><div class="label">SMA200</div><div class="value" id="sma200">—</div></div>
+          </div>
+          <div class="footer mono muted" id="techNote"></div>
+        </div>
+
+        <div class="card grid">
+          <div style="font-weight:700; display:flex; align-items:center; justify-content:space-between;">
+            <span>Flows</span>
+            <div style="display:flex; gap:8px;">
+              <span id="optPill" class="pill">Options —</span>
+              <span id="instPill" class="pill">Institutional —</span>
+            </div>
+          </div>
+          <div class="row">
+            <div class="kpi"><div class="label">Options tilt</div><div class="value" id="optTilt">—</div></div>
+            <div class="kpi"><div class="label">Institutional tilt</div><div class="value" id="instTilt">—</div></div>
+            <div class="kpi"><div class="label">7-bar momentum</div><div class="value" id="mom7">—</div></div>
+          </div>
+          <div class="footer mono muted" id="flowNote"></div>
+        </div>
+      </div>
+
+      <div class="card log">
+        <div style="font-weight:700; margin-bottom:6px;">Debug (fetched components)</div>
+        <pre id="debug">—</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fmtPct = (x) => (x == null || isNaN(x)) ? "—" : (Number(x) * 100).toFixed(0) + "%";
+    const fmtPct2 = (x) => (x == null || isNaN(x)) ? "—" : Number(x).toFixed(2) + "%";
+
+    function setPill(el, label, kind="") {
+      el.textContent = label;
+      el.classList.remove("ok","warn","bad");
+      if (kind) el.classList.add(kind);
+    }
+
+    async function run() {
+      const sym = $("symbol").value.trim().toUpperCase();
+      const horizon = Number($("horizon").value || 5);
+      const hours = Number($("hours").value || 72);
+      if (!sym) { alert("Enter a symbol"); return; }
+
+      $("status").textContent = "Running…";
+      $("result").classList.add("hidden");
+
+      const origin = location.origin;
+      const url = `${origin}/api/scorecard_proxy?symbol=${encodeURIComponent(sym)}&horizon_days=${horizon}&hours=${hours}`;
+
+      try {
+        const r = await fetch(url, { cache: "no-store" });
+        const data = await r.json();
+        $("status").textContent = r.ok ? "Done." : `Error: ${r.status}`;
+        $("debug").textContent = JSON.stringify(data, null, 2);
+
+        if (!r.ok || !data || data.ok !== true) {
+          $("result").classList.remove("hidden");
+          $("headline").textContent = `${sym} — error`;
+          $("analysis").textContent = (data && data.error) ? data.error : "Request failed";
+          return;
+        }
+
+        $("result").classList.remove("hidden");
+        $("headline").textContent = `${sym} — ${(data.probability_blended*100).toFixed(0)}% Upside (Blended)`;
+        $("analysis").textContent = data.analysis || "—";
+
+        $("pBase").textContent  = fmtPct(data.probability_base);
+        $("pBlend").textContent = fmtPct(data.probability_blended);
+        $("action").textContent = (data.action || "—").replace("_"," ");
+
+        const rsi = data.technicals?.rsi ?? null;
+        const sma50 = data.technicals?.sma50 ?? null;
+        const sma200 = data.technicals?.sma200 ?? null;
+        $("rsi").textContent = rsi == null ? "—" : Math.round(rsi);
+        $("sma50").textContent = sma50 == null ? "—" : Math.round(sma50);
+        $("sma200").textContent = sma200 == null ? "—" : Math.round(sma200);
+
+        // Pill logic
+        if (rsi == null || sma50 == null || sma200 == null) setPill($("techPill"), "Technicals — missing", "warn");
+        else if (sma50 > sma200) setPill($("techPill"), "Technicals — uptrend", "ok");
+        else if (sma50 < sma200) setPill($("techPill"), "Technicals — downtrend", "bad");
+        else setPill($("techPill"), "Technicals — neutral", "warn");
+
+        const probSignals = data.components?.prob?.data?.signals || {};
+        $("mom7").textContent = fmtPct2(probSignals.pct_change_7);
+
+        const opt = data.components?.options?.data;
+        if (opt && opt.ok && opt.found !== false) {
+          $("optTilt").textContent = (opt.label || "—") + ` (${Number(opt.tilt).toFixed(2)})`;
+          setPill($("optPill"), `Options ${opt.label}`, opt.label === "bullish" ? "ok" : opt.label === "bearish" ? "bad" : "warn");
+        } else {
+          $("optTilt").textContent = "—";
+          setPill($("optPill"), "Options — n/a", "warn");
+        }
+
+        const inst = data.components?.institutional?.data;
+        if (inst && inst.ok && inst.found !== false) {
+          $("instTilt").textContent = (inst.label || "—") + ` (${Number(inst.tilt).toFixed(2)})`;
+          setPill($("instPill"), `Institutional ${inst.label}`, inst.label === "bullish" ? "ok" : inst.label === "bearish" ? "bad" : "warn");
+        } else {
+          $("instTilt").textContent = "—";
+          setPill($("instPill"), "Institutional — n/a", "warn");
+        }
+
+        $("techNote").textContent = `SMA50 ${sma50 ?? "—"} vs SMA200 ${sma200 ?? "—"} • RSI ${rsi ?? "—"}`;
+        $("flowNote").textContent = `7-bar momentum: ${$("mom7").textContent}`;
+
+      } catch (e) {
+        $("status").textContent = "Failed.";
+        $("result").classList.remove("hidden");
+        $("headline").textContent = "Error";
+        $("analysis").textContent = String(e);
+        $("debug").textContent = String(e);
+      }
+    }
+
+    $("run").addEventListener("click", run);
+    $("copyLink").addEventListener("click", () => {
+      const sym = $("symbol").value.trim().toUpperCase() || "AAPL";
+      const horizon = Number($("horizon").value || 5);
+      const hours = Number($("hours").value || 72);
+      const link = `${location.origin}/api/scorecard_proxy?symbol=${encodeURIComponent(sym)}&horizon_days=${horizon}&hours=${hours}`;
+      navigator.clipboard.writeText(link).then(() => {
+        $("status").textContent = "Copied shareable API link to clipboard.";
+      });
+    });
+
+    // Auto-run if ?symbol= is present
+    (function initFromQuery(){
+      const q = new URLSearchParams(location.search);
+      const sym = (q.get("symbol") || "").toUpperCase();
+      if (sym) {
+        $("symbol").value = sym;
+        if (q.get("horizon_days")) $("horizon").value = q.get("horizon_days");
+        if (q.get("hours")) $("hours").value = q.get("hours");
+        run();
+      }
+    })();
+  </script>
+</body>
+</html>
