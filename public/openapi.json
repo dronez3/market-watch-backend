@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Market Watch Backend (Public Read API)",
-    "version": "1.1.0",
-    "description": "Read-only endpoints used by a GPT to analyze symbols, compare tickers, and read portfolio data (action-friendly proxies included)."
+    "version": "1.2.0",
+    "description": "Read-only endpoints used by a GPT to analyze symbols, compare tickers, portfolio insights, and expected-return modeling."
   },
   "servers": [
     { "url": "https://market-watch-backend.vercel.app" }
@@ -30,18 +30,6 @@
         "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
       }
     },
-    "/api/assess_proxy": {
-      "get": {
-        "operationId": "getAssessment",
-        "summary": "Readable short assessment for a symbol (proxied)",
-        "parameters": [
-          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
-          { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
-          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
-        ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
-      }
-    },
     "/api/scorecard_proxy": {
       "get": {
         "operationId": "getScorecard",
@@ -50,6 +38,19 @@
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
           { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
+        ],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    },
+    "/api/scorecard_plus_proxy": {
+      "get": {
+        "operationId": "getScorecardPlus",
+        "summary": "Scorecard + Expected Return (adds drift/vol interval)",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } },
+          { "name": "lookback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 90 } }
         ],
         "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
       }
@@ -83,6 +84,18 @@
         "parameters": [
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
           { "name": "fallback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    },
+    "/api/expected_return": {
+      "get": {
+        "operationId": "getExpectedReturn",
+        "summary": "Expected return estimate with 68% interval (log-return drift/vol)",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 7 } },
+          { "name": "lookback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 90 } }
         ],
         "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
       }
