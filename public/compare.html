@@ -16,9 +16,9 @@
     input, button { width:100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #2a3356; background: #0f1533; color: var(--text); }
     input::placeholder { color:#7381a8; }
     button { cursor: pointer; border-color:#38406b; font-weight: 600; }
-    button.primary { background: linear-gradient(180deg,#2cd4ff,#6cf3c5); color:#0a0f22; border: none; }
+    button.primary { background: linear-gradient(180deg,#2cd4ff,#6cf3c5); color: #0a0f22; border: none; }
     button.ghost { background: transparent; }
-    .row { display: grid; grid-template-columns: 1fr 160px 160px; gap: 12px; }
+    .row { display: grid; grid-template-columns: 1fr 160px 160px 160px; gap: 12px; }
     .pill { display:inline-flex; align-items:center; padding: 4px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #2a3356; }
     .pill.ok { background: rgba(94,230,168,.12); border-color: rgba(94,230,168,.4); color: var(--accent); }
     .pill.warn { background: rgba(255,198,92,.12); border-color: rgba(255,198,92,.4); color: var(--warn); }
@@ -61,6 +61,9 @@
         <div style="display:flex; gap:8px;">
           <button class="primary" id="run">Compare</button>
           <button class="ghost" id="copy">Copy API Link</button>
+        </div>
+        <div>
+          <button class="ghost" id="csv">Download CSV</button>
         </div>
       </div>
       <div class="hr"></div>
@@ -195,6 +198,13 @@
       const horizon = Number($("horizon").value || 5);
       const link = `${location.origin}/api/compare_proxy?symbols=${encodeURIComponent(syms)}&horizon_days=${horizon}`;
       navigator.clipboard.writeText(link).then(() => $("status").textContent = "Copied shareable API link.");
+    });
+    $("csv").addEventListener("click", () => {
+      const symbols = $("symbols").value.split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+      const horizon = Number($("horizon").value || 5);
+      if (!symbols.length) { alert("Enter at least one symbol"); return; }
+      const link = `${location.origin}/api/export_compare_csv?symbols=${encodeURIComponent(symbols.join(","))}&horizon_days=${horizon}`;
+      window.open(link, "_blank");
     });
 
     // Auto-run if ?symbols=
