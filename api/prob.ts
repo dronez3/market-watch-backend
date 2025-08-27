@@ -73,4 +73,45 @@ export default async function handler(req: Request) {
   // Trend tilt (SMA50 vs SMA200)
   if (latest && typeof latest.sma50 === "number" && typeof latest.sma200 === "number") {
     if (latest.sma50 > latest.sma200) { p += 0.07; rationale.push("Uptrend (SMA50>SMA200)"); }
-    else if (latest.sma50 < latest.sma200) { p -= 0.07; rationale.push("Downtrend (SMA50<SMA
+    else if (latest.sma50 < latest.sma200) { p -= 0.07; rationale.push("Downtrend (SMA50<SMA200)"); }
+    else { rationale.push("Trend neutral (SMA50≈SMA200)"); }
+  } else {
+    rationale.push("Trend MAs missing");
+  }
+
+  // Sentiment tilt (scaled & clamped)
+  if (typeof sentiment === "number") {
+    const tilt = Math.max(-0.08, Math.min(0.08, sentiment * 0.30));
+    p += tilt;
+    rationale.push(tilt >= 0 ? "Positive sentiment tilt" : "Negative sentiment tilt");
+  } else {
+    rationale.push("No recent sentiment");
+  }
+
+  // 7-bar momentum tilt (scaled & clamped)
+  if (pctChange7 != null) {
+    const tilt = Math.max(-0.06, Math.min(0.06, pctChange7 * 0.50));
+    p += tilt;
+    rationale.push(`7-bar momentum ${pctChange7 >= 0 ? "positive" : "negative"} (${(pctChange7 * 100).toFixed(1)}%)`);
+  } else {
+    rationale.push("Momentum unavailable (need ~7 daily rows)");
+  }
+
+  // Clamp to [0.05, 0.95]
+  p = Math.max(0.05, Math.min(0.95, p));
+
+  return jsonResponse({
+    ok: true,
+    symbol,
+    horizon_days: horizonDays,
+    probability_up: Number(p.toFixed(2)),
+    signals: {
+      rsi: latest ? (latest as any).rsi ?? null : null,
+      sma50: latest ? (latest as any).sma50 ?? null : null,
+      sma200: latest ? (latest as any).sma200 ?? null : null,
+      sentiment: sentiment ?? null,
+      pct_change_7: pctChange7 != null ? Number((pctChange7 * 100).toFixed(2)) : null
+    },
+    rationale
+  });
+}
