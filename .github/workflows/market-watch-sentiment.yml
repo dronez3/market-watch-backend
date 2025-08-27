@@ -1,32 +1,3 @@
-name: Market Watch Sentiment Batch
-
-on:
-  schedule:
-    - cron: "0 * * * *"   # hourly (UTC)
-  workflow_dispatch:
-    inputs:
-      symbols:
-        description: "Override symbols CSV (e.g., AAPL,TSLA,NVDA)"
-        required: false
-      hours:
-        description: "Override lookback window in hours (e.g., 72)"
-        required: false
-      base_url:
-        description: "Override base URL (default uses Vercel prod URL)"
-        required: false
-
-concurrency:
-  group: market-watch-sentiment
-  cancel-in-progress: true
-
-env:
-  BASE_URL: https://market-watch-backend.vercel.app
-
-jobs:
-  run-batch:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
       - name: Build request URL
         id: build
         run: |
@@ -40,13 +11,5 @@ jobs:
           SYMS="${{ github.event.inputs.symbols || 'AAPL,TSLA,NVDA,MSFT,SPY,QQQ' }}"
           HOURS="${{ github.event.inputs.hours || '72' }}"
 
-          URL="$BASE/api/sentiment_rollup_batch_link?token=$TOKEN&symbols=$SYMS&hours=$HOURS"
+          URL="$BASE/api/cron/sentiment_batch?token=$TOKEN&symbols=$SYMS&hours=$HOURS"
           echo "url=$URL" >> "$GITHUB_OUTPUT"
-
-      - name: Call batch endpoint
-        run: |
-          set -e
-          echo "GET ${{ steps.build.outputs.url }}"
-          RESP="$(curl -sSL "${{ steps.build.outputs.url }}")"
-          echo "$RESP"
-          echo "$RESP" | grep -q '"ok":true' || { echo "Batch call did not return ok:true" >&2; exit 1; }
