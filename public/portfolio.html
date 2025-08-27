@@ -57,6 +57,7 @@
         <div style="display:flex; gap:8px;">
           <button class="primary" id="run">Load Portfolio</button>
           <button id="copy">Copy Insights API Link</button>
+          <button class="ghost" id="csv">Download CSV</button>
         </div>
       </div>
       <div class="hr"></div>
@@ -171,7 +172,6 @@
         const tickers = (list && list.ok && Array.isArray(list.symbols)) ? list.symbols.join(", ") : rows.map(r=>r.symbol).join(", ");
         $("note").textContent = `Holdings: ${tickers} • Ranked by short-term upside probability • Window ${hours}h`;
 
-        // Aggregate risks
         const flags = rows.flatMap(r => Array.isArray(r.risk_flags) ? r.risk_flags.map(x => `${r.symbol}: ${x}`) : []);
         if (flags.length) {
           $("risks").textContent = flags.join("\n");
@@ -210,6 +210,13 @@
       const hours = Number($("hours").value || 72);
       const link = `${location.origin}/api/action_portfolio_insights?user=${encodeURIComponent(user)}&hours=${encodeURIComponent(String(hours))}`;
       navigator.clipboard.writeText(link).then(()=> $("status").textContent = "Copied insights API link."));
+    });
+    $("csv").addEventListener("click", () => {
+      const user = $("user").value.trim();
+      const hours = Number($("hours").value || 72);
+      if (!user) { alert("Enter user UUID"); return; }
+      const link = `${location.origin}/api/export_portfolio_csv?user=${encodeURIComponent(user)}&hours=${encodeURIComponent(String(hours))}`;
+      window.open(link, "_blank");
     });
 
     // Auto-run via query
