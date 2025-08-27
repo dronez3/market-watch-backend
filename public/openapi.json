@@ -1,35 +1,117 @@
 {
   "openapi": "3.1.0",
-  "info": { "title": "Market Watch Backend", "version": "0.1.0" },
-  "servers": [{ "url": "https://market-watch-backend.vercel.app" }],
+  "info": {
+    "title": "Market Watch Backend (Public Read API)",
+    "version": "1.0.0",
+    "description": "Read-only endpoints used by a GPT to analyze symbols and compare tickers."
+  },
+  "servers": [
+    { "url": "https://market-watch-backend.vercel.app" }
+  ],
   "paths": {
-    "/api/ping": {
+    "/api/prob": {
       "get": {
-        "summary": "Public ping",
-        "responses": { "200": { "description": "OK" } }
-      }
-    },
-    "/api/secure_ping": {
-      "get": {
-        "summary": "Protected ping",
+        "operationId": "getProbability",
+        "summary": "Short-term upside probability for a symbol",
         "parameters": [
-          {
-            "in": "header",
-            "name": "Authorization",
-            "schema": { "type": "string", "example": "Bearer <ACTIONS_BEARER_TOKEN>" },
-            "required": false
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "schema": { "type": "string" },
-            "required": false,
-            "description": "Temporary testing token (remove later)"
-          }
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "401": { "description": "Unauthorized" }
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/tech": {
+      "get": {
+        "operationId": "getTechnicals",
+        "summary": "Latest technicals snapshot for a symbol",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/assess_proxy": {
+      "get": {
+        "operationId": "getAssessment",
+        "summary": "Readable short assessment for a symbol (proxied)",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/scorecard_proxy": {
+      "get": {
+        "operationId": "getScorecard",
+        "summary": "Aggregate signals for one symbol (probability, technicals, options, institutional)",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/compare_proxy": {
+      "get": {
+        "operationId": "compareSymbols",
+        "summary": "Compare two or more tickers by probability, momentum, sentiment, volatility",
+        "parameters": [
+          { "name": "symbols", "in": "query", "required": true, "schema": { "type": "string", "example": "SPY,QQQ,AAPL" } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/options_signal_link": {
+      "get": {
+        "operationId": "getOptionsTilt",
+        "summary": "Options activity tilt for a symbol (bullish/neutral/bearish)",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "fallback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 7 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/institutional_signal_link": {
+      "get": {
+        "operationId": "getInstitutionalTilt",
+        "summary": "Institutional flow tilt for a symbol (bullish/neutral/bearish)",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "fallback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/prompt_template": {
+      "get": {
+        "operationId": "getPromptTemplate",
+        "summary": "Build a GPT-ready single-ticker prompt",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
         }
       }
     }
