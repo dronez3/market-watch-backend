@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Market Watch Backend (Public Read API)",
-    "version": "1.0.0",
-    "description": "Read-only endpoints used by a GPT to analyze symbols and compare tickers."
+    "version": "1.1.0",
+    "description": "Read-only endpoints used by a GPT to analyze symbols, compare tickers, and read portfolio data (action-friendly proxies included)."
   },
   "servers": [
     { "url": "https://market-watch-backend.vercel.app" }
@@ -17,9 +17,7 @@
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
         ],
-        "responses": {
-          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
-        }
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
       }
     },
     "/api/tech": {
@@ -29,9 +27,7 @@
         "parameters": [
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } }
         ],
-        "responses": {
-          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
-        }
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
       }
     },
     "/api/assess_proxy": {
@@ -43,9 +39,7 @@
           { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
         ],
-        "responses": {
-          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
-        }
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
       }
     },
     "/api/scorecard_proxy": {
@@ -57,9 +51,7 @@
           { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
         ],
-        "responses": {
-          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
-        }
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
       }
     },
     "/api/compare_proxy": {
@@ -70,9 +62,7 @@
           { "name": "symbols", "in": "query", "required": true, "schema": { "type": "string", "example": "SPY,QQQ,AAPL" } },
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
         ],
-        "responses": {
-          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
-        }
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
       }
     },
     "/api/options_signal_link": {
@@ -83,9 +73,7 @@
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
           { "name": "fallback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 7 } }
         ],
-        "responses": {
-          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
-        }
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
       }
     },
     "/api/institutional_signal_link": {
@@ -96,9 +84,7 @@
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
           { "name": "fallback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 10 } }
         ],
-        "responses": {
-          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
-        }
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
       }
     },
     "/api/prompt_template": {
@@ -110,9 +96,28 @@
           { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
         ],
-        "responses": {
-          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
-        }
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    },
+    "/api/action_portfolio_list": {
+      "get": {
+        "operationId": "actionPortfolioList",
+        "summary": "List portfolio holdings (server-injected token)",
+        "parameters": [
+          { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11" } }
+        ],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    },
+    "/api/action_portfolio_insights": {
+      "get": {
+        "operationId": "actionPortfolioInsights",
+        "summary": "Portfolio insights (server-injected token)",
+        "parameters": [
+          { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11" } },
+          { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } }
+        ],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
       }
     }
   }
