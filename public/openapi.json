@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Market Watch Backend (Public Read API)",
-    "version": "1.6.0",
-    "description": "Read-only endpoints for probability, technicals, scorecards, portfolio insights, expected return, CSV exports, live data proxies, trusted news + sentiment, and health checks."
+    "version": "1.7.0",
+    "description": "Read-only endpoints for probability, technicals, scorecards, portfolio insights, expected return, CSV exports, live data proxies, trusted news + sentiment, health checks, and a single-call 'why is it moving?' endpoint."
   },
   "servers": [
     { "url": "https://market-watch-backend.vercel.app" }
@@ -17,7 +17,9 @@
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5, "minimum": 1, "maximum": 14 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/tech": {
@@ -27,7 +29,9 @@
         "parameters": [
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/scorecard_proxy": {
@@ -39,7 +43,9 @@
           { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/scorecard_plus_proxy": {
@@ -52,7 +58,9 @@
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } },
           { "name": "lookback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 90 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/compare_proxy": {
@@ -63,7 +71,9 @@
           { "name": "symbols", "in": "query", "required": true, "schema": { "type": "string", "example": "SPY,QQQ,AAPL,MSFT" } },
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/options_signal_link": {
@@ -74,7 +84,9 @@
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
           { "name": "fallback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 7 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/institutional_signal_link": {
@@ -85,7 +97,9 @@
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
           { "name": "fallback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 10 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/expected_return": {
@@ -97,7 +111,9 @@
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 7 } },
           { "name": "lookback_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 90 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/prompt_template": {
@@ -109,7 +125,9 @@
           { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/action_portfolio_list": {
@@ -119,7 +137,9 @@
         "parameters": [
           { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11" } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/action_portfolio_insights": {
@@ -127,10 +147,12 @@
         "operationId": "actionPortfolioInsights",
         "summary": "Portfolio insights (server-injected token)",
         "parameters": [
-          { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11", "format": "uuid" } },
+          { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "format": "uuid", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11" } },
           { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/export_compare_csv": {
@@ -138,10 +160,12 @@
         "operationId": "exportCompareCsv",
         "summary": "Export compare results to CSV",
         "parameters": [
-          { "name": "symbols", "in": "query", "required": true, "schema": { "type": "string", "example": "SPY,QQQ,AAPL,MSFT" }, "description": "Comma-separated tickers. Accepts index aliases (e.g., ^GSPC → SPY) and normalizes BRK-B → BRK.B." },
+          { "name": "symbols", "in": "query", "required": true, "description": "Comma-separated tickers. Accepts index aliases (e.g., ^GSPC → SPY) and normalizes BRK-B → BRK.B.", "schema": { "type": "string", "example": "SPY,QQQ,AAPL,MSFT" } },
           { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5, "minimum": 1, "maximum": 14 } }
         ],
-        "responses": { "200": { "description": "OK (CSV)", "content": { "text/csv": { "schema": { "type": "string" } } } } }
+        "responses": {
+          "200": { "description": "OK (CSV)", "content": { "text/csv": { "schema": { "type": "string" } } } }
+        }
       }
     },
     "/api/export_portfolio_csv": {
@@ -149,10 +173,12 @@
         "operationId": "exportPortfolioCsv",
         "summary": "Export portfolio insights to CSV (server-injected token)",
         "parameters": [
-          { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11", "format": "uuid" } },
+          { "name": "user", "in": "query", "required": true, "schema": { "type": "string", "format": "uuid", "example": "7e4b9c4b-9af2-4d8e-9b9b-1d3e2a6f0f11" } },
           { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72, "minimum": 6, "maximum": 168 } }
         ],
-        "responses": { "200": { "description": "OK (CSV)", "content": { "text/csv": { "schema": { "type": "string" } } } } }
+        "responses": {
+          "200": { "description": "OK (CSV)", "content": { "text/csv": { "schema": { "type": "string" } } } }
+        }
       }
     },
     "/api/quote_proxy": {
@@ -161,10 +187,12 @@
         "summary": "Live quote via server-side provider (Yahoo with Stooq fallback + TTL cache)",
         "parameters": [
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
-          { "name": "force", "in": "query", "required": false, "schema": { "type": "boolean", "default": false }, "description": "Bypass cache if true." },
-          { "name": "ttl", "in": "query", "required": false, "schema": { "type": "integer", "default": 15, "minimum": 1, "maximum": 300 }, "description": "Cache TTL seconds." }
+          { "name": "force", "in": "query", "required": false, "description": "Bypass cache if true.", "schema": { "type": "boolean", "default": false } },
+          { "name": "ttl", "in": "query", "required": false, "description": "Cache TTL seconds.", "schema": { "type": "integer", "default": 15, "minimum": 1, "maximum": 300 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/history_proxy": {
@@ -175,12 +203,14 @@
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
           { "name": "range", "in": "query", "required": false, "schema": { "type": "string", "enum": ["5d","1mo","3mo","6mo","1y","2y"], "default": "6mo" } },
           { "name": "interval", "in": "query", "required": false, "schema": { "type": "string", "enum": ["1d","1wk"], "default": "1d" } },
-          { "name": "upsert", "in": "query", "required": false, "schema": { "type": "boolean", "default": false }, "description": "If true (and interval=1d), writes rows into daily_agg (requires token)." },
-          { "name": "token", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Required when upsert=true. Use WRITER_BEARER_TOKEN." },
-          { "name": "force", "in": "query", "required": false, "schema": { "type": "boolean", "default": false }, "description": "Bypass cache if true." },
-          { "name": "ttl", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 60, "maximum": 604800, "default": 21600 }, "description": "Cache TTL seconds (default 6h; 1wk interval defaults to 1h)." }
+          { "name": "upsert", "in": "query", "required": false, "description": "If true (and interval=1d), writes rows into daily_agg (requires token).", "schema": { "type": "boolean", "default": false } },
+          { "name": "token", "in": "query", "required": false, "description": "Required when upsert=true. Use WRITER_BEARER_TOKEN.", "schema": { "type": "string" } },
+          { "name": "force", "in": "query", "required": false, "description": "Bypass cache if true.", "schema": { "type": "boolean", "default": false } },
+          { "name": "ttl", "in": "query", "required": false, "description": "Cache TTL seconds (default 6h; 1wk interval defaults to 1h).", "schema": { "type": "integer", "minimum": 60, "maximum": 604800, "default": 21600 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/news_proxy": {
@@ -194,7 +224,9 @@
           { "name": "force", "in": "query", "required": false, "schema": { "type": "boolean", "default": false } },
           { "name": "ttl", "in": "query", "required": false, "schema": { "type": "integer", "default": 300 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/news_sentiment": {
@@ -205,7 +237,23 @@
           { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
           { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } }
         ],
-        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    },
+    "/api/why_proxy": {
+      "get": {
+        "operationId": "getWhy",
+        "summary": "Explain current move: price vs prior close, probability, expected return, news sentiment, headlines",
+        "parameters": [
+          { "name": "symbol", "in": "query", "required": true, "schema": { "type": "string", "example": "AAPL" } },
+          { "name": "hours", "in": "query", "required": false, "schema": { "type": "integer", "default": 72 } },
+          { "name": "horizon_days", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
       }
     },
     "/api/health": {
@@ -213,8 +261,8 @@
         "operationId": "getHealth",
         "summary": "Service health (shallow + deep checks)",
         "parameters": [
-          { "name": "deep", "in": "query", "required": false, "schema": { "type": "boolean", "default": false }, "description": "If true, calls internal quote/history endpoints." },
-          { "name": "secret", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Required when deep=true (HEALTH_SECRET)." }
+          { "name": "deep", "in": "query", "required": false, "description": "If true, calls internal quote/history endpoints.", "schema": { "type": "boolean", "default": false } },
+          { "name": "secret", "in": "query", "required": false, "description": "Required when deep=true (HEALTH_SECRET).", "schema": { "type": "string" } }
         ],
         "responses": {
           "200": { "description": "OK / Healthy", "content": { "application/json": { "schema": { "type": "object" } } } },
@@ -226,7 +274,9 @@
       "get": {
         "operationId": "getUptime",
         "summary": "Cheap uptime probe (‘ok’ text)",
-        "responses": { "200": { "description": "OK (text)", "content": { "text/plain": { "schema": { "type": "string" } } } } }
+        "responses": {
+          "200": { "description": "OK (text)", "content": { "text/plain": { "schema": { "type": "string" } } } }
+        }
       }
     }
   }
