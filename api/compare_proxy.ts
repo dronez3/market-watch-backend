@@ -1,6 +1,6 @@
 export const config = { runtime: "edge" };
 
-// Minimal JSON helper (avoid importing _common to keep deps zero)
+// Minimal JSON helper (no external imports)
 function json(data: any, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -9,54 +9,60 @@ function json(data: any, status = 200) {
 }
 
 /**
- * Public comparator via /api/prob for each symbol.
- * GET /api/compare_proxy?symbols=SPY,QQQ&hours=72&horizon_days=5
+ * Public comparator via local /api/prob for each symbol.
+ * GET /api/compare_proxy?symbols=SPY,QQQ&horizon_days=5
  *
  * Notes:
- * - Uses SELF_BASE_URL env or falls back to your Vercel URL.
- * - Does not hit Supabase directly; it fetches /api/prob for each symbol.
+ * - Uses the request's own origin (no env needed).
+ * - Calls /api/prob sequentially with hard guards to avoid crashing on bad responses.
  */
 export default async function handler(req: Request) {
-  const url = new URL(req.url);
-  const symbols = (url.searchParams.get("symbols") || "SPY,QQQ")
-    .split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
-  const horizonDays = Number(url.searchParams.get("horizon_days") || 5);
-
-  if (symbols.length === 0) {
-    return json({ ok: false, error: "Provide ?symbols=SPY,QQQ" }, 400);
-  }
-
-  const base = (process.env.SELF_BASE_URL || "https://market-watch-backend.vercel.app").replace(/\/+$/, "");
-
   try {
-    // Fetch /api/prob for each symbol in parallel
-    const calls = symbols.map(async (sym) => {
-      const u = `${base}/api/prob?symbol=${encodeURIComponent(sym)}&horizon_days=${encodeURIComponent(String(horizonDays))}`;
-      const r = await fetch(u, { cache: "no-store" });
-      const data = await r.json().catch(() => null);
-      if (!data || data.ok !== true) {
-        return { symbol: sym, ok: false, error: "prob endpoint failed", data };
+    const url = new URL(req.url);
+    const origin = `${url.protocol}//${url.host}`; // always your deployed domain
+    const symbols = (url.searchParams.get("symbols") || "SPY,QQQ")
+      .split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+    const horizonDays = Number(url.searchParams.get("horizon_days") || 5);
+
+    if (symbols.length === 0) {
+      return json({ ok: false, error: "Provide ?symbols=SPY,QQQ" }, 400);
+    }
+
+    const resultsRaw: any[] = [];
+    // Sequential (more robust for debugging); can switch to parallel later.
+    for (const sym of symbols) {
+      const u = `${origin}/api/prob?symbol=${encodeURIComponent(sym)}&horizon_days=${encodeURIComponent(String(horizonDays))}`;
+      try {
+        const r = await fetch(u, { cache: "no-store" });
+        const ct = r.headers.get("content-type") || "";
+        let data: any = null;
+        if (ct.includes("application/json")) {
+          try { data = await r.json(); } catch { data = null; }
+        }
+        if (!r.ok || !data || data.ok !== true) {
+          resultsRaw.push({ symbol: sym, ok: false, status: r.status, note: "prob endpoint failed", url: u, data });
+          continue;
+        }
+        resultsRaw.push({
+          symbol: sym,
+          ok: true,
+          probability_up: data.probability_up ?? null,
+          momentum_7bar_pct: data.signals?.pct_change_7 ?? null,
+          sentiment: data.signals?.sentiment ?? null,
+          signals: {
+            rsi: data.signals?.rsi ?? null,
+            sma50: data.signals?.sma50 ?? null,
+            sma200: data.signals?.sma200 ?? null
+          },
+          rationale: data.rationale ?? []
+        });
+      } catch (e: any) {
+        resultsRaw.push({ symbol: sym, ok: false, error: String(e?.message || e), url: u });
       }
-      return {
-        symbol: sym,
-        ok: true,
-        probability_up: data.probability_up ?? null,
-        momentum_7bar_pct: data.signals?.pct_change_7 ?? null,
-        sentiment: data.signals?.sentiment ?? null,
-        signals: {
-          rsi: data.signals?.rsi ?? null,
-          sma50: data.signals?.sma50 ?? null,
-          sma200: data.signals?.sma200 ?? null
-        },
-        rationale: data.rationale ?? []
-      };
-    });
+    }
 
-    const resultsRaw = await Promise.all(calls);
-
-    // Keep only successful items for ranking; include failures verbosely
-    const successes = resultsRaw.filter(r => (r as any).ok);
-    const failures = resultsRaw.filter(r => !(r as any).ok);
+    const successes = resultsRaw.filter(r => r.ok);
+    const failures  = resultsRaw.filter(r => !r.ok);
 
     // Sort by probability_up desc
     const sorted = [...successes].sort((a: any, b: any) => (b.probability_up ?? 0) - (a.probability_up ?? 0));
@@ -71,4 +77,13 @@ export default async function handler(req: Request) {
 
     return json({
       ok: true,
-      horizon_days: horizonDays,_
+      horizon_days: horizonDays,
+      count: successes.length,
+      summary,
+      results: sorted,
+      failures // if any symbols failed, you’ll see details here instead of a crash
+    });
+  } catch (e: any) {
+    return json({ ok: false, stage: "top_level", error: String(e?.message || e) }, 500);
+  }
+}
